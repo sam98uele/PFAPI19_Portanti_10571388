@@ -21,9 +21,9 @@
 
 // #define DISABLE_ADD 0
 
-#define DISABLE_FREE 0
+// #define DISABLE_FREE 0
 
-#define NO_FIND 0
+//#define NO_FIND 0
 
 typedef struct ent_head t_ent_head;
 typedef struct ent_node t_ent_node;
