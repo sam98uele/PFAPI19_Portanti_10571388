@@ -52,7 +52,7 @@ typedef struct rank_node t_rank_node;
 typedef struct rel_list t_rel_list;
 
 // #################
-// START ENTITY TREE
+// START ENTITY TREE 
 // #################
 struct ent_head{
   t_ent_node *root;
