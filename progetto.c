@@ -1,12 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h> // TEST
 
 #define MAX_INPUT 200
-#define MAX_ENT_ID 50
-#define MAX_REL_ID 50
+#define MAX_ENT_ID 100
+#define MAX_REL_ID 100
+
+#define HASH_SIZE 64 // 4096
 
 // DEBUG_DEFINE
+
+// #define DEBUG_STATS 1
+
 // #define DEBUG 1
 // #define DEBUG_2 1
 // #define DEBUG_ADDENT 1
@@ -19,11 +25,20 @@
 // #define DEBUG_TREE_WALK 0
 // #define DEBUG_3 0
 
+// #define DEBUG_HASH_1 0
+// #define DEBUG_HASH_2 0
+
 // #define DISABLE_ADD 0
 
 #define DISABLE_FREE 0
+#define DISABLE_FREE_ENT_NODE 0
+#define DISABLE_FREE_REL_TREE 0
+#define DISABLE_FREE_REL_NODE 0
+#define DISABLE_FREE_RANK_NODE 0 //rank node è puntato solo da rel
 
-#define NO_FIND 0
+#define DISABLE_FREE_STRANO 0
+
+// #define NO_FIND 0
 
 typedef struct ent_head t_ent_head;
 typedef struct ent_node t_ent_node;
@@ -104,7 +119,7 @@ struct rel_head{
 struct rel_node{
   // t_rel_tree_head rel; //head of rel_tree_node
   // char id[MAX_REL_ID];
-  char id[MAX_ENT_ID+MAX_ENT_ID]; //id made by "from_ent"+"to_ent" !UNIQUE!
+  char id[MAX_ENT_ID+MAX_REL_ID]; //id made by "from_ent"+"to_ent" !UNIQUE!
   int v; //valid bit = 0->deleted , 1->alive
   t_ent_node *orig;
   t_ent_node *dest;
@@ -125,6 +140,7 @@ struct rel_node{
 // ##################
 struct rank_head{
   t_rank_node *root;
+  t_rank_node *max;
   t_rank_node *nil;
 };
 
@@ -155,7 +171,101 @@ t_ent_node NIL_ENT = {.id = "NIL_END", .color = 0, .v = 1, .in_rel = NULL, .out_
 t_rel_tree_node NIL_REL_TREE = {.id = "NIL_REL_TREE", .color = 0, .v = 1, .ranking = NULL, .relations = NULL, .p = NULL, .left = NULL, .right = NULL};
 t_rel_node NIL_REL = {.id = "NIL_REL", .v = 1, .color = 0, .orig = NULL, .dest = NULL, .p = NULL, .left = NULL, .right = NULL};
 t_rank_node NIL_RANK = {.n = 0, .id = "NIL_RANK", .color = 0, .v = 1, .p = NULL, .left = NULL, .right = NULL};
+
+int vuoto = 1;
+int printed_1 = 0;
+int printed_2 = 0;
+
 // END Global Vars
+
+
+// ###################################
+// ############## START ##############
+// ###### OPERATIONS PER "HASH" ######
+// ###################################
+
+// int hash_value_single(char a){
+//   #ifdef DEBUG_HASH_2
+//     printf("hash di: %c: ", a);
+//   #endif
+//
+//   if(a >= 97)
+//     a = a - 59;
+//   else if(a >= 95)
+//     a = a - 58;
+//   else if(a >= 65)
+//     a = a - 54;
+//   else if(a >= 48)
+//     a = a - 47;
+//   else
+//     a = a - 45;
+//
+//   #ifdef DEBUG_HASH_2
+//     printf("%d\n", a);
+//   #endif
+//
+//   return a;
+// }
+//
+// int hash_value(char a, char b){
+//   int z = hash_value_single(a);
+//   int base = z*64;
+//   if(b == '\0')
+//     return base;
+//   else
+//     return base+hash_value_single(a);
+// }
+
+int hash_value(char a){
+  #ifdef DEBUG_HASH_2
+    printf("hash di: %c: ", a);
+  #endif
+
+  if(a >= 97)
+    a = a - 59;
+  else if(a >= 95)
+    a = a - 58;
+  else if(a >= 65)
+    a = a - 54;
+  else if(a >= 48)
+    a = a - 47;
+  else
+    a = a - 45;
+
+  #ifdef DEBUG_HASH_2
+    printf("%d\n", a);
+  #endif
+
+  return a;
+}
+
+t_ent_head *init_hash_ent(){
+  int i = 0;
+  t_ent_head* p = malloc(sizeof(t_ent_head)*HASH_SIZE);
+  for(i = 0; i < HASH_SIZE; i++){
+    (p+i)->nil = &NIL_ENT;
+    (p+i)->root = ((p+i)->nil);
+  }
+  return p;
+}
+
+t_rel_tree_head *init_hash_rel_tree(){
+  int i = 0;
+  t_rel_tree_head* p = malloc(sizeof(t_rel_tree_head)*HASH_SIZE);
+  for(i = 0; i < HASH_SIZE; i++){
+    (p+i)->nil = &NIL_REL_TREE;
+    (p+i)->root = ((p+i)->nil);
+  }
+  return p;
+}
+
+// ################################
+// ############# END ##############
+// ##### OPERATIONS PER HASH ######
+// ################################
+
+
+
 
 // ################################
 // ##### DEFAULT OPERATIONS #######
@@ -218,6 +328,22 @@ int IS_LOWER_ID_RANK(int n1, char *id_1, int n2, char *id_2){
       return 1;
     else if(id_1[i] != '\0' && id_2[i] == '\0')
       return 0;
+  }
+  else if(n1 < n2){
+    return 1;
+  }
+  return 0; // equal. this is only >!
+}
+
+// come sopra ma con strcmp
+// Return values:
+// 1 -> id_1 < id_2
+// 0 -> altrimenti
+int IS_LOWER_ID_RANK_STRCMP(int n1, char *id_1, int n2, char *id_2){
+  int i = 0;
+  if(n1 == n2){ // se gli n sono uguali confrontiamo le stringhe
+    if(strcmp(id_1, id_2) < 0) return 1;
+    else return 0;
   }
   else if(n1 < n2){
     return 1;
@@ -379,7 +505,7 @@ int ENT_INSERT(t_ent_head *T, t_ent_node *z){
   t_ent_node *x = T->root;
   while(x != T->nil){
     y = x;
-    if(IS_LOWER_ID(z->id, x->id))
+    if(strcmp(z->id, x->id) < 0) // IS_LOWER_ID(z->id, x->id)
       x = x->left;
     else
       x = x->right;
@@ -387,7 +513,7 @@ int ENT_INSERT(t_ent_head *T, t_ent_node *z){
   z->p = y;
   if(y == T->nil)
     T->root = z;
-  else if(IS_LOWER_ID(z->id, y->id))
+  else if(strcmp(z->id, y->id) < 0) // IS_LOWER_ID(z->id, y->id)
     y->left = z;
   else
     y->right = z;
@@ -703,7 +829,7 @@ int REL_INSERT(t_rel_head *T, t_rel_node *z){
   t_rel_node *x = T->root;
   while(x != T->nil){
     y = x;
-    if(IS_LOWER_ID(z->id, x->id))
+    if(strcmp(z->id, x->id) < 0) // IS_LOWER_ID(z->id, x->id)
       x = x->left;
     else
       x = x->right;
@@ -711,7 +837,7 @@ int REL_INSERT(t_rel_head *T, t_rel_node *z){
   z->p = y;
   if(y == T->nil)
     T->root = z;
-  else if(IS_LOWER_ID(z->id, y->id))
+  else if(strcmp(z->id, y->id) < 0) // IS_LOWER_ID(z->id, y->id)
     y->left = z;
   else
     y->right = z;
@@ -966,12 +1092,31 @@ t_rel_tree_node *REL_TREE_TREE_MINIMUM(t_rel_tree_head *T, t_rel_tree_node *x){
   return x;
 }
 
+t_rel_tree_node *REL_TREE_TREE_MAXIMUM(t_rel_tree_head *T, t_rel_tree_node *x){
+  while (x->right != T->nil) {
+    x = x->right;
+  }
+  return x;
+}
+
 t_rel_tree_node *REL_TREE_TREE_SUCCESSOR(t_rel_tree_head *T, t_rel_tree_node *x){
   t_rel_tree_node *y;
   if(x->right != T->nil)
     return REL_TREE_TREE_MINIMUM(T, x->right);
   y = x->p;
   while (y != T->nil && x == y->right) {
+    x = y;
+    y = y->p;
+  }
+  return y;
+}
+
+t_rel_tree_node *REL_TREE_TREE_PREDECESSOR(t_rel_tree_head *T, t_rel_tree_node *x){
+  t_rel_tree_node *y;
+  if(x->left != T->nil)
+    return REL_TREE_TREE_MAXIMUM(T, x->left);
+  y = x->p;
+  while (y != T->nil && x == y->left) {
     x = y;
     y = y->p;
   }
@@ -1039,7 +1184,7 @@ int REL_TREE_INSERT(t_rel_tree_head *T, t_rel_tree_node *z){
   t_rel_tree_node *x = T->root;
   while(x != T->nil){
     y = x;
-    if(IS_LOWER_ID(z->id, x->id)) //OK
+    if(strcmp(z->id, x->id) < 0) // IS_LOWER_ID(z->id, x->id)
       x = x->left;
     else
       x = x->right;
@@ -1047,7 +1192,7 @@ int REL_TREE_INSERT(t_rel_tree_head *T, t_rel_tree_node *z){
   z->p = y;
   if(y == T->nil)
     T->root = z;
-  else if(IS_LOWER_ID(z->id, y->id))
+  else if(strcmp(z->id, y->id) < 0) // IS_LOWER_ID(z->id, y->id)
     y->left = z;
   else
     y->right = z;
@@ -1211,12 +1356,31 @@ t_rank_node *RANK_TREE_MINIMUM(t_rank_head *T, t_rank_node *x){
   return x;
 }
 
+t_rank_node *RANK_TREE_MAXIMUM(t_rank_head *T, t_rank_node *x){
+  while (x->right != T->nil) {
+    x = x->right;
+  }
+  return x;
+}
+
 t_rank_node *RANK_TREE_SUCCESSOR(t_rank_head *T, t_rank_node *x){
   t_rank_node *y;
   if(x->right != T->nil)
     return RANK_TREE_MINIMUM(T, x->right);
   y = x->p;
   while (y != T->nil && x == y->right) {
+    x = y;
+    y = y->p;
+  }
+  return y;
+}
+
+t_rank_node *RANK_TREE_PREDECESSOR(t_rank_head *T, t_rank_node *x){
+  t_rank_node *y;
+  if(x->left != T->nil)
+    return RANK_TREE_MAXIMUM(T, x->left);
+  y = x->p;
+  while (y != T->nil && x == y->left) {
     x = y;
     y = y->p;
   }
@@ -1284,7 +1448,7 @@ int RANK_INSERT(t_rank_head *T, t_rank_node *z){
   t_rank_node *x = T->root;
   while(x != T->nil){
     y = x;
-    if(IS_LOWER_ID_RANK(z->n, z->id, x->n, x->id)){
+    if(IS_LOWER_ID_RANK_STRCMP(z->n, z->id, x->n, x->id)){
       x = x->left;
     }
     else{
@@ -1294,7 +1458,7 @@ int RANK_INSERT(t_rank_head *T, t_rank_node *z){
   z->p = y;
   if(y == T->nil)
     T->root = z;
-  else if(IS_LOWER_ID_RANK(z->n, z->id, y->n, y->id)){
+  else if(IS_LOWER_ID_RANK_STRCMP(z->n, z->id, y->n, y->id)){
     y->left = z;
   }
   else{
@@ -1487,35 +1651,39 @@ t_rank_node *RANK_DELETE(t_rank_head *T, t_rank_node *z){
 
 int getcmd(char *input){
   int i = 0;
-  char input_cmd[6];
+  // char input_cmd[6];
   char cmdlist[6][7] = {"addent", "delent", "addrel", "delrel", "report", "end"};
-  while(input[i] != ' ' && input[i] != '\0'){
-    input_cmd[i] = input[i];
-    i++;
-  }
-  input_cmd[i] = '\0';
+  // while(input[i] != ' ' && (input[i] != '\0' || input[i] != '\n' || input[i] != EOF)){
+    // input_cmd[i] = input[i];
+    // i++;
+  // }
+  // input_cmd[i] = '\0';
+  // printf("%s\n", input);
   for(i=0; i<6; i++)
-    if(strcmp(input_cmd, cmdlist[i]) == 0)
+    if(strcmp(input, cmdlist[i]) == 0)
       return i;
-  return -1;
+  return 5;
 }
 
 int retrive_addent_delent_id(char *input, char *ent){
-  int i = 8; //sappiamo come è fatto il comando e parte da 7 il nome della nuova identità
-  while(input[i] != '"' && input[i] != '\0' && input[i] != ' '){
-    ent[i-8] = input[i];
+  int i = 2; //sappiamo come è fatto il comando e parte da 7 il nome della nuova identità
+  int c = 2;
+  // while(input[i] != '"' && input[i] != '\0' && input[i] != ' '){
+  while(input[i] != '"'){
+    ent[i-c] = input[i];
     i++;
   }
   // printf("\n");
-  ent[i-8] = '\0';
+  ent[i-c] = '\0';
   return 1;
 }
 
 int retrive_addrel_delrel_args(char *input, char *orig, char *dest, char *rel){
-  int i = 8; //sappiamo come è fatto il comando e parte da 7 il nome della nuova relazione
-  int c = 8;
+  int i = 2; //sappiamo come è fatto il comando e parte da 7 il nome della nuova relazione
+  int c = 2;
   // ORIG
-  while(input[i] != '"' && input[i] != '\0' && input[i] != ' '){
+  // while(input[i] != '"' && input[i] != '\0' && input[i] != ' '){ // OLD
+  while(input[i] != '"'){
     orig[i-c] = input[i];
     i++;
   }
@@ -1523,7 +1691,8 @@ int retrive_addrel_delrel_args(char *input, char *orig, char *dest, char *rel){
   // ORIG
   i = i + 3;
   c = i;
-  while(input[i] != '"' && input[i] != '\0' && input[i] != ' '){
+  // while(input[i] != '"' && input[i] != '\0' && input[i] != ' '){ // OLD
+  while(input[i] != '"'){
     dest[i-c] = input[i];
     i++;
   }
@@ -1531,7 +1700,8 @@ int retrive_addrel_delrel_args(char *input, char *orig, char *dest, char *rel){
   // REL
   i = i + 3;
   c = i;
-  while(input[i] != '"' && input[i] != '\0' && input[i] != ' '){
+  // while(input[i] != '"' && input[i] != '\0' && input[i] != ' '){ // OLD
+  while(input[i] != '"'){
     rel[i-c] = input[i];
     i++;
   }
@@ -1540,111 +1710,48 @@ int retrive_addrel_delrel_args(char *input, char *orig, char *dest, char *rel){
   return 1;
 }
 
-// int check_existence_ent(t_ent_head *T, t_ent_node *x, char *id, int i){
-//   if(x == T->nil){
-//     // printf("aa\n");
-//     return 0;
-//   }
-//   else if(id[i] == x->id[i] && id[i+1] == '\0' && x->id[i+1] == '\0'){
-//     return 1;
-//   }
-//   else if(id[i] == x->id[i] && id[i+1] != '\0' && x->id[i+1] != '\0'){
-//     return check_existence_ent(T, x, id, i+1);
-//   }
-//   else if(id[i] != '\0' && x->id[i] == '\0')
-//     return 0;
-//   else if(id[i] == '\0' && x->id[i] != '\0')
-//     return 0;
-//   else if(id[i] < x->id[i]){
-//     return check_existence_ent(T, (x->left), id, i);
-//   }
-//   else{
-//     return check_existence_ent(T, (x->right), id, i);
-//   }
-// }
 
-int check_existence_ent(t_ent_head *T, t_ent_node *x, char *id, int i){
+int check_existence_ent_tree(t_ent_head *T, t_ent_node *x, char *id, int i){
   if(x == T->nil){
     return 0;
   }
   else if(strcmp(id, x->id) == 0){
     return 1;
   }
-  if(IS_LOWER_ID(id, x->id))
-    return check_existence_ent(T, (x->left), id, i);
+  if(strcmp(id, x->id) < 0) //IS_LOWER_ID(id, x->id)
+    return check_existence_ent_tree(T, (x->left), id, i);
   else
-    return check_existence_ent(T, (x->right), id, i);
+    return check_existence_ent_tree(T, (x->right), id, i);
 }
 
-// int find_ent_old(t_ent_head *T, t_ent_node *x, t_ent_node **z, char *id, int i){
-//   if(x == T->nil){
-//     return 0; //ent not found
-//   }
-//   else if(id[i] == x->id[i] && id[i+1] == '\0' && x->id[i+1] == '\0'){
-//     *z = x;
-//     return 1;
-//   }
-//   else if(id[i] == x->id[i] && id[i+1] != '\0' && x->id[i+1] != '\0'){
-//     return find_ent(T, x, z, id, i+1);
-//   }
-//   else if(id[i] != '\0' && x->id[i] == '\0')
-//     return 0;
-//   else if(id[i] == '\0' && x->id[i] != '\0')
-//     return 0;
-//   else if(id[i] < x->id[i]){
-//     return find_ent(T, (x->left), z, id, i);
-//   }
-//   else{
-//     return find_ent(T, (x->right), z, id, i);
-//   }
-// }
+int check_existence_ent_hash(t_ent_head* hash_a, char *id, int v){
+  // if(hash_a[v] == NULL)
+    // return 0;
+  return check_existence_ent_tree((hash_a+v), (hash_a+v)->root, id, 0);
+}
 
-int find_ent(t_ent_head *T, t_ent_node *x, t_ent_node **z, char *id, int i){
+
+int find_ent(t_ent_head *T, t_ent_node *x, t_ent_node **z, char *id){
   if(x == T->nil){ // not found
-    // printf("NF\n");
     *z = x;
     return 0;
   }
   else if(strcmp(id, x->id) == 0){ // found
-    // printf("F\n");
     *z = x;
     return 1;
   }
-  if(IS_LOWER_ID(id, x->id))
-    return find_ent(T, (x->left), z, id, i);
+  if(strcmp(id, x->id) < 0) // IS_LOWER_ID(id, x->id)
+    return find_ent(T, (x->left), z, id);
   else
-    return find_ent(T, (x->right), z, id, i);
+    return find_ent(T, (x->right), z, id);
 }
 
-// int find_rel(t_rel_head *T, t_rel_node *x, t_rel_node **z, char *id, int i){
-//   if(x == T->nil){
-//     return 0; //ent not found
-//   }
-//   else if(id[i] == x->id[i] && id[i+1] == '\0' && x->id[i+1] == '\0'){
-//     *z = x;
-//     if(x->v == 1){
-//       return 1;
-//     }
-//     else{
-//       return 0;
-//     }
-//   }
-//   else if(id[i] == x->id[i] && id[i+1] != '\0' && x->id[i+1] != '\0'){
-//     return find_rel(T, x, z, id, i+1);
-//   }
-//   else if(id[i] != '\0' && x->id[i] == '\0')
-//     return 0;
-//   else if(id[i] == '\0' && x->id[i] != '\0')
-//     return 0;
-//   else if(id[i] < x->id[i]){
-//     return find_rel(T, (x->left), z, id, i);
-//   }
-//   else{
-//     return find_rel(T, (x->right), z, id, i);
-//   }
-// }
+int find_ent_hash(t_ent_head* hash_a, t_ent_node **z, char *id, int v){
+  return find_ent((hash_a+v), (hash_a+v)->root, z, id);
+}
 
-int find_rel(t_rel_head *T, t_rel_node *x, t_rel_node **z, char *id, int i){
+
+int find_rel(t_rel_head *T, t_rel_node *x, t_rel_node **z, char *id){
   if(x == T->nil){
     *z = x;
     return 0;
@@ -1653,36 +1760,14 @@ int find_rel(t_rel_head *T, t_rel_node *x, t_rel_node **z, char *id, int i){
     *z = x;
     return 1;
   }
-  if(IS_LOWER_ID(id, x->id))
-    return find_rel(T, (x->left), z, id, i);
+  if(strcmp(id, x->id) < 0) // IS_LOWER_ID(id, x->id)
+    return find_rel(T, (x->left), z, id);
   else
-    return find_rel(T, (x->right), z, id, i);
+    return find_rel(T, (x->right), z, id);
 }
 
-// int find_rel_tree(t_rel_tree_head *T, t_rel_tree_node *x, t_rel_tree_node **z, char *id, int i){
-//   if(x == T->nil){
-//     return 0; //ent not found
-//   }
-//   else if(id[i] == x->id[i] && id[i+1] == '\0' && x->id[i+1] == '\0'){
-//     *z = x;
-//     return 1;
-//   }
-//   else if(id[i] == x->id[i] && id[i+1] != '\0' && x->id[i+1] != '\0'){
-//     return find_rel_tree(T, x, z, id, i+1);
-//   }
-//   else if(id[i] != '\0' && x->id[i] == '\0')
-//     return 0;
-//   else if(id[i] == '\0' && x->id[i] != '\0')
-//     return 0;
-//   else if(id[i] < x->id[i]){
-//     return find_rel_tree(T, (x->left), z, id, i);
-//   }
-//   else{
-//     return find_rel_tree(T, (x->right), z, id, i);
-//   }
-// }
 
-int find_rel_tree(t_rel_tree_head *T, t_rel_tree_node *x, t_rel_tree_node **z, char *id, int i){
+int find_rel_tree(t_rel_tree_head *T, t_rel_tree_node *x, t_rel_tree_node **z, char *id){
   if(x == T->nil){
     *z = x;
     return 0;
@@ -1691,10 +1776,17 @@ int find_rel_tree(t_rel_tree_head *T, t_rel_tree_node *x, t_rel_tree_node **z, c
     *z = x;
     return 1;
   }
-  if(IS_LOWER_ID(id, x->id))
-    return find_rel_tree(T, (x->left), z, id, i);
+  if(strcmp(id, x->id) < 0) // IS_LOWER_ID(id, x->id)
+    return find_rel_tree(T, (x->left), z, id);
   else
-    return find_rel_tree(T, (x->right), z, id, i);
+    return find_rel_tree(T, (x->right), z, id);
+}
+
+int find_rel_tree_hash(t_rel_tree_head *hash_rt, t_rel_tree_node **z, char *id, int v){
+  #ifdef DEBUG_HASH_1
+    printf("Hash val: %d\n", v);
+  #endif
+  return find_rel_tree((hash_rt+v), (hash_rt+v)->root, z, id);
 }
 
 
@@ -1717,8 +1809,10 @@ void find_rank(t_rank_head *T, t_rank_node *x, t_rank_node **z, char *id){
 // ##################################
 
 // FUNZIONE PRINCIPALE COMANDO "addent"
-int addent(t_ent_head *T, char *comando){
+int addent(t_ent_head *hash){
+  char input[MAX_INPUT];
   char addent_id[MAX_ENT_ID];
+  int hash_v;
   t_ent_node *ent;
 
   // t_ent_node ent;
@@ -1729,10 +1823,15 @@ int addent(t_ent_head *T, char *comando){
   #endif
 
   // ADDENT !!
-  retrive_addent_delent_id(comando, addent_id);
+  fgets(input, MAX_INPUT, stdin);
+  retrive_addent_delent_id(input, addent_id);
+  // sscanf(input," \"%49[^\"]\"", addent_id);
+
+  // calcoliamo l'hash value
+  hash_v = hash_value(addent_id[0]);
 
   #ifndef NO_FIND
-    if(check_existence_ent(T, T->root, addent_id, 0) != 0){
+    if(check_existence_ent_hash(hash, addent_id, hash_v) != 0){
       #ifdef DEBUG_ADDENT
         printf("esiste gia' %s\n", addent_id);
       #endif
@@ -1749,7 +1848,7 @@ int addent(t_ent_head *T, char *comando){
   ent->in_rel = NULL;
   ent->out_rel = NULL;
 
-  if(ENT_INSERT(T, ent)){
+  if(ENT_INSERT((hash+hash_v), ent)){
     #ifdef DEBUG_ADDENT
       printf("ent inserted: %s\n", ent->id);
     #endif
@@ -1765,7 +1864,8 @@ int addent(t_ent_head *T, char *comando){
 }
 
 // FUNZIONE PRINCIPALE COMANDO "delent"
-int delent(t_ent_head *T, t_rel_tree_head *R, char *comando){
+int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
+  char input[MAX_INPUT];
   char delent_id[MAX_ENT_ID];
   t_ent_node *ent;
   t_ent_node *deleted_ent;
@@ -1775,13 +1875,20 @@ int delent(t_ent_head *T, t_rel_tree_head *R, char *comando){
 
   t_rel_node *deleted_rel;
 
-  retrive_addent_delent_id(comando, delent_id);
+  int hash_e_v;
+  int hash_rt_v;
+
+  fgets(input, MAX_INPUT, stdin);
+  retrive_addent_delent_id(input, delent_id);
+  // sscanf(input," \"%49[^\"]\"", delent_id);
 
   #ifdef DEBUG_DELENT
     printf("ent to delete: %s\n", delent_id);
   #endif
 
-  if(find_ent(T, T->root, &ent, delent_id, 0) == 0){
+  hash_e_v = hash_value(delent_id[0]);
+
+  if(find_ent_hash(hash_e, &ent, delent_id, hash_e_v) == 0){
     #ifdef DEBUG_DELENT
       printf("Ent NON presente, nulla da eliminare\n");
     #endif
@@ -1792,7 +1899,7 @@ int delent(t_ent_head *T, t_rel_tree_head *R, char *comando){
     printf("found ent to delete : %s\n", ent->id);
   #endif
 
-  deleted_ent = ENT_DELETE(T, ent);
+  deleted_ent = ENT_DELETE(hash_e+hash_e_v, ent);
   #ifdef DEBUG_DELENT
     printf("Deleted %s\n", deleted_ent->id);
   #endif
@@ -1803,27 +1910,37 @@ int delent(t_ent_head *T, t_rel_tree_head *R, char *comando){
   //   #endif
   // }
 
-
   deleted_ent->v = 0;
 
   // disable all the rels with this ent
   in = deleted_ent->in_rel;
   while (in != NULL) {
-    if(in->rel->v == 0){
-      #ifndef DISABLE_FREE
-        free(in->rel);
+    if(in->rel->v != 1){
+      #ifndef DISABLE_FREE_REL_NODE
+        if(in->rel->v == 3)
+          free(in->rel);
+        else if(in->rel->v == 2) // la relazione è stata eliminata prima da out list
+          in->rel->v = 3;
+        else
+          in->rel->v = 2;
       #endif
       in = in->next;
+      // printf("bb\n");
       continue;
     }
 
-    in->rel->v = 0;
+    in->rel->v = 2;
 
     RANK_DELETE(in->rel->rank_h_p, in->rel->rank_pointer);
     in->rel->rank_pointer->n = in->rel->rank_pointer->n - 1;
     if(in->rel->rank_pointer->n == 0){
-      #ifndef DISABLE_FREE
-        free(in->rel->rank_pointer); // così perchè ho modificato l'algoritmo!
+      #ifndef DISABLE_FREE_RANK_NODE
+        if(in->rel->rank_pointer->v == 3)
+            free(in->rel->rank_pointer); // così perchè ho modificato l'algoritmo!
+        else if(in->rel->rank_pointer->v == 2) // passato prima da out
+          in->rel->rank_pointer->v = 3;
+        else
+          in->rel->rank_pointer->v = 2;
       #endif
     }
     else{
@@ -1838,13 +1955,18 @@ int delent(t_ent_head *T, t_rel_tree_head *R, char *comando){
     // }
     // devo cancellare la rel tree solo se non ci sono più rel!
     if(in->rel->rank_pointer->rel_tree_pointer->relations->root == in->rel->rank_pointer->rel_tree_pointer->relations->nil){
-      REL_TREE_DELETE(R, in->rel->rank_pointer->rel_tree_pointer);
+      hash_rt_v = hash_value(in->rel->rank_pointer->rel_tree_pointer->id[0]);
+      REL_TREE_DELETE(hash_rt+hash_rt_v, in->rel->rank_pointer->rel_tree_pointer);
+      #ifndef DISABLE_FREE_REL_TREE
+        free(in->rel->rank_pointer->rel_tree_pointer); // così perchè ho modificato l'algoritmo!
+      #endif
     }
 
     // printf("rel to delete: %s\n", in->rel->id);
     // cancelliamo la relazione
     deleted_rel = REL_DELETE(in->rel_head, in->rel);
-    #ifndef DISABLE_FREE
+    #ifndef DISABLE_FREE_STRANO
+      in->rel->v = 2;
       free(in->rel);
     #endif
     // printf("rel deleted:  %s\n", deleted_rel->id);
@@ -1861,21 +1983,33 @@ int delent(t_ent_head *T, t_rel_tree_head *R, char *comando){
   out = deleted_ent->out_rel;
   while (out != NULL) {
     // se v = 0, allora è già stata eliminata, non dobbiamo toccarla
-    if(out->rel->v == 0){
-      #ifndef DISABLE_FREE
-        free(out->rel);
+    if(out->rel->v != 1){
+      #ifndef DISABLE_FREE_REL_NODE
+        if(out->rel->v == 3)
+          free(out->rel);
+        else if(out->rel->v == 2)
+          out->rel->v == 3;
+        else
+          out->rel->v = 2;
       #endif
+
       out = out->next;
+      // printf("aa\n");
       continue;
     }
 
-    out->rel->v = 0;
+    out->rel->v = 2;
 
     RANK_DELETE(out->rel->rank_h_p, out->rel->rank_pointer);
     out->rel->rank_pointer->n = out->rel->rank_pointer->n - 1;
     if(out->rel->rank_pointer->n == 0){
-      #ifndef DISABLE_FREE
-        free(out->rel->rank_pointer); // così perchè ho modificato l'algoritmo!
+      #ifndef DISABLE_FREE_RANK_NODE
+        if(out->rel->rank_pointer->v == 3)
+            free(out->rel->rank_pointer); // così perchè ho modificato l'algoritmo!
+        else if(out->rel->rank_pointer->v == 2) // passato prima da out
+          out->rel->rank_pointer->v = 3;
+        else
+          out->rel->rank_pointer->v = 2;
       #endif
     }
     else{
@@ -1889,11 +2023,16 @@ int delent(t_ent_head *T, t_rel_tree_head *R, char *comando){
     //   REL_TREE_DELETE(R, out->rel->rank_pointer->rel_tree_pointer);
     // }
     if(out->rel->rank_pointer->rel_tree_pointer->relations->root == out->rel->rank_pointer->rel_tree_pointer->relations->nil){
-      REL_TREE_DELETE(R, out->rel->rank_pointer->rel_tree_pointer);
+      hash_rt_v = hash_value(out->rel->rank_pointer->rel_tree_pointer->id[0]);
+      REL_TREE_DELETE(hash_rt+hash_rt_v, out->rel->rank_pointer->rel_tree_pointer);
+      #ifndef DISABLE_FREE_REL_TREE
+        free(out->rel->rank_pointer->rel_tree_pointer); // così perchè ho modificato l'algoritmo!
+      #endif
     }
 
     REL_DELETE(out->rel_head, out->rel);
-    #ifndef DISABLE_FREE
+    #ifndef DISABLE_FREE_STRANO
+      out->rel->v = 2; // valid bit a 2 (così poi lo elimino senza problemi)
       free(out->rel);
     #endif
 
@@ -1916,11 +2055,16 @@ int delent(t_ent_head *T, t_rel_tree_head *R, char *comando){
     ENT_TREE_WALK(T, T->root);
   #endif
 
+  #ifndef DISABLE_FREE_ENT_NODE
+    free(deleted_ent);
+  #endif
+
   return 1;
 }
 
 // FUNZIONE PRINCIPALE COMANDO "addrel"
-int addrel(t_ent_head *E, t_rel_tree_head *R, char *comando){
+int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
+  char input[MAX_INPUT];
   char addrel_orig[MAX_ENT_ID];
   char addrel_dest[MAX_ENT_ID];
   char addrel_rel_id[MAX_REL_ID];
@@ -1936,18 +2080,31 @@ int addrel(t_ent_head *E, t_rel_tree_head *R, char *comando){
 
   t_rank_node *rank = NULL;
 
-  retrive_addrel_delrel_args(comando, addrel_orig, addrel_dest, addrel_rel_id);
+  int hash_e_v_orig;
+  int hash_e_v_dest;
+  int hash_rt_v;
+
+  fgets(input, MAX_INPUT, stdin);
+  retrive_addrel_delrel_args(input, addrel_orig, addrel_dest, addrel_rel_id);
+  // scanf(" \"%s\" \"%s\" \"%s\"", addrel_orig, addrel_dest, addrel_rel_id);
+  // sscanf(input," \"%49[^\"]\" \"%49[^\"]\" \"%49[^\"]\"", addrel_orig, addrel_dest, addrel_rel_id);
+
   strcpy(addrel_orig_dest, addrel_orig);
   strcat(addrel_orig_dest, addrel_dest);
 
+  // printf("%s - %s - %s\n", addrel_orig, addrel_dest, addrel_rel_id);
+
+  hash_e_v_orig = hash_value(addrel_orig[0]);
+  hash_e_v_dest = hash_value(addrel_dest[0]);
+
   // prima di tutto cerchiamo se orig e dest esistono
-  if(find_ent(E, E->root, &orig, addrel_orig, 0) == 0){ //search for ent 1
+  if(find_ent_hash(hash_e, &orig, addrel_orig, hash_e_v_orig) == 0){ //search for ent 1
     #ifdef DEBUG_ADDREL
       printf("Ent 1 not found\n");
     #endif
     return 0; //ent orig not found
   }
-  if(find_ent(E, E->root, &dest, addrel_dest, 0) == 0){ //search for ent 2
+  if(find_ent_hash(hash_e, &dest, addrel_dest, hash_e_v_dest) == 0){ //search for ent 2
     #ifdef DEBUG_ADDREL
       printf("Ent 2 not found\n");
     #endif
@@ -1964,7 +2121,9 @@ int addrel(t_ent_head *E, t_rel_tree_head *R, char *comando){
     printf("\n\nAddRel: %s - %s - %s\n", addrel_orig, addrel_dest, addrel_rel_id);
   #endif
 
-  if(find_rel_tree(R, R->root, &rel_tree, addrel_rel_id, 0)){
+  hash_rt_v = hash_value(addrel_rel_id[0]);
+
+  if(find_rel_tree_hash(hash_rt, &rel_tree, addrel_rel_id, hash_rt_v)){
     // rel_tree è già presente!
     // e in questo modo l'ho già
     #ifdef DEBUG_ADDREL
@@ -1972,7 +2131,7 @@ int addrel(t_ent_head *E, t_rel_tree_head *R, char *comando){
     #endif
 
     // cerchiamo se questa relazione fra i due è presente
-    if(find_rel(rel_tree->relations, rel_tree->relations->root, &rel_node, addrel_orig_dest, 0)){
+    if(find_rel(rel_tree->relations, rel_tree->relations->root, &rel_node, addrel_orig_dest)){
       #ifdef DEBUG_ADDREL
         printf("\tRelazione Gia' Presente\n");
       #endif
@@ -1996,7 +2155,7 @@ int addrel(t_ent_head *E, t_rel_tree_head *R, char *comando){
     rel_tree->ranking = malloc(sizeof(t_rank_head));
     rel_tree->ranking->nil = &NIL_RANK;
     rel_tree->ranking->root = rel_tree->ranking->nil;
-    if(REL_TREE_INSERT(R, rel_tree)){
+    if(REL_TREE_INSERT(hash_rt+hash_rt_v, rel_tree)){
       #ifdef DEBUG_2
         printf("\tadded new REL TREE\n");
       #endif
@@ -2087,7 +2246,7 @@ int addrel(t_ent_head *E, t_rel_tree_head *R, char *comando){
     #endif
   }
   // inseriamo il collegamento da ent al nodo rank
-  rel_node->rank_h_p = rel_tree->ranking; // inseriamo la testa del rank (serve per il delete)
+  rel_node->rank_h_p = rel_tree->ranking; // inseriamo la head del rank (serve per il delete)
   rel_node->rank_pointer = rank; // puntatore al nodo rank
   #ifdef DEBUG_ADDREL
     printf("-------Rank repo dopo insert: ---------\n");
@@ -2098,39 +2257,53 @@ int addrel(t_ent_head *E, t_rel_tree_head *R, char *comando){
 }
 
 // FUNZIONE PRINCIPALE COMANDO "delrel"
-int delrel(t_rel_tree_head *T, char *comando){
+int delrel(t_rel_tree_head *hash_rt){
+  char input[MAX_INPUT];
   char delrel_orig[MAX_ENT_ID];
   char delrel_dest[MAX_ENT_ID];
-  char delrel_orig_dest[MAX_ENT_ID+MAX_ENT_ID];
   char delrel_id[MAX_REL_ID];
+  char delrel_orig_dest[MAX_ENT_ID+MAX_ENT_ID];
   t_rel_tree_node *rel_tree;
   t_rel_node *rel;
+
+  t_rel_tree_node *deleted_rel_tree;
   // t_rel_node *deleted_rel;
+
+  int hash_rt_v;
 
   #ifdef DEBUG_DELREL
     printf("Inizio eliminazione relazione\n");
   #endif
 
-  if(retrive_addrel_delrel_args(comando, delrel_orig, delrel_dest, delrel_id) != 1){
-    #ifdef DEBUG_DELREL
-      printf("Errore nella retrive\n");
-    #endif
-    return 0;
-  }
-  #ifdef DEBUG_DELREL
-    printf("Presi i dati in input\n");
-  #endif
+  // if(retrive_addrel_delrel_args(comando, delrel_orig, delrel_dest, delrel_id) != 1){
+  //   #ifdef DEBUG_DELREL
+  //     printf("Errore nella retrive\n");
+  //   #endif
+  //   return 0;
+  // }
+  // #ifdef DEBUG_DELREL
+  //   printf("Presi i dati in input\n");
+  // #endif
+
+  fgets(input, MAX_INPUT, stdin);
+  retrive_addrel_delrel_args(input, delrel_orig, delrel_dest, delrel_id);
+
+  // fgets(input, MAX_INPUT, stdin);
+  // sscanf(input," \"%49[^\"]\" \"%49[^\"]\" \"%49[^\"]\"", delrel_orig, delrel_dest, delrel_id);
+
   strcpy(delrel_orig_dest, delrel_orig);
   strcat(delrel_orig_dest, delrel_dest);
   // printf("delrel_orig_dest: %s\n", delrel_orig_dest);
 
-  if(find_rel_tree(T, T->root, &rel_tree, delrel_id, 0) == 0){
+  hash_rt_v = hash_value(delrel_id[0]);
+
+  if(find_rel_tree_hash(hash_rt, &rel_tree, delrel_id, hash_rt_v) == 0){
     #ifdef DEBUG_DELREL
       printf("Relazione in Rel Tree non trovata\n");
     #endif
     return 0;
   }
-  if(find_rel(rel_tree->relations, rel_tree->relations->root, &rel, delrel_orig_dest, 0) == 0){
+  if(find_rel(rel_tree->relations, rel_tree->relations->root, &rel, delrel_orig_dest) == 0){
     #ifdef DEBUG_DELREL
       printf("Relazione in Relations non trovata\n");
     #endif
@@ -2151,12 +2324,12 @@ int delrel(t_rel_tree_head *T, char *comando){
 
   // vuol dire che mi sono rimaste zero relazioni
   if(rel_tree->relations->root == rel_tree->relations->nil){
-    REL_TREE_DELETE(T, rel_tree);
-    #ifndef DISABLE_FREE
-      free(rel_tree);
-    #endif
-    #ifdef DEBUG_DELREL
-      printf("Eliminato Rel Tree\n");
+    deleted_rel_tree = REL_TREE_DELETE(hash_rt+hash_rt_v, rel_tree);
+    #ifndef DISABLE_FREE_REL_TREE
+      free(deleted_rel_tree);
+      #ifdef DEBUG_DELREL
+        printf("Eliminato Rel Tree\n");
+      #endif
     #endif
   }
   #ifdef DEBUG_DELREL
@@ -2172,8 +2345,13 @@ int delrel(t_rel_tree_head *T, char *comando){
       printf("Voglio eliminare il nodo rank che è a 0\n");
     #endif
     RANK_DELETE(rel->rank_h_p, rel->rank_pointer);
-    #ifndef DISABLE_FREE
-      free(rel->rank_pointer); // così perchè ho modificato l'algoritmo!
+
+    if(rel->rank_pointer->v == 1)
+      rel->rank_pointer->v = 0;
+
+    #ifndef DISABLE_FREE_RANK_NODE
+      // disattivato perché le free le faccio solo nel delent
+      // free(rel->rank_pointer); // così perchè ho modificato l'algoritmo!
     #endif
   }
   else{
@@ -2217,24 +2395,93 @@ int delrel(t_rel_tree_head *T, char *comando){
 //   }
 // }
 
+
+// ####################
+// ##### OLD ##########
+// ####################
 // TO IMPROVE!!!!
+// TODO: funzione da ottimizzare, in quando scandisce tutto l'albero!
+// (magari solo per 1 relazione!)
+// void REPORT_RANK_TREE_WALK(t_rank_head *T, t_rank_node *x, int n){
+//   // printf("aa\n");
+//   if(x != T->nil){
+//     REPORT_RANK_TREE_WALK(T, x->left, n);
+//     if(x->n == n){
+//       fputs("\"", stdout);
+//       fputs(x->id, stdout);
+//       fputs("\" ", stdout);
+//       // printf("\"%s\" ", x->id);
+//     }
+//     REPORT_RANK_TREE_WALK(T, x->right, n);
+//   }
+// }
+// ####################
+// ##### OLD ##########
+// ####################
+
+// void REPORT_RANK_TREE_WALK(t_rank_head *T, t_rank_node *x, int n, t_rank_node *max){
 void REPORT_RANK_TREE_WALK(t_rank_head *T, t_rank_node *x, int n){
-  // printf("a\n");
-  if(x != T->nil){
-    REPORT_RANK_TREE_WALK(T, x->left, n);
-    if(x->n == n){
-      printf("\"%s\" ", x->id);
-    }
-    // else
-    //   printf("\"\"%s\"\" ", x->id);
-    REPORT_RANK_TREE_WALK(T, x->right, n);
+  // printf("aa\n");
+  if(x != T->nil && x->n == n){
+    REPORT_RANK_TREE_WALK(T, RANK_TREE_PREDECESSOR(T, x), n);
+    fputs("\"", stdout);
+    fputs(x->id, stdout);
+    fputs("\" ", stdout);
+    // printf("\"%s\" ", x->id);
   }
 }
+
+
+int no_of_digits(int num)
+{
+    int digit_count = 0;
+
+    while(num > 0)
+    {
+        digit_count++;
+        num /= 10;
+    }
+
+    return digit_count;
+}
+
+char *i_to_a(int num)
+{
+    char *str;
+    int digit_count = 0;
+
+    if(num < 0)
+    {
+        num = -1*num;
+        digit_count++;
+    }
+
+    digit_count += no_of_digits(num);
+    str = malloc(sizeof(char)*(digit_count+1));
+
+    str[digit_count] = '\0';
+
+    while(num > 0)
+    {
+        str[digit_count-1] = num%10 + '0';
+        num = num/10;
+        digit_count--;
+    }
+
+    if(digit_count == 1)
+        str[0] = '-';
+
+    return str;
+}
+
 
 // FUNZIONE SECONDARIA COMANDO "report"
 int REPORT_RANK(t_rank_head *T, t_rank_node *x){
   // t_rank_node *y;
-  int n;
+  int n, k, i;
+  char c;
+  char *str;
+
   t_rank_node *y = x;
   // andiamo al massimo
   #ifdef DEBUG_REPORT
@@ -2244,15 +2491,18 @@ int REPORT_RANK(t_rank_head *T, t_rank_node *x){
     printf("- pp- %s\n -/pp-", x->id);
   #endif
 
+  // cerco il max
   while (x->right != T->nil) {
     x = x->right;
   }
   n = x->n;
+
   #ifdef DEBUG_REPORT
     printf(" -- trovato il max --\n");
   #endif
   // TODO: da ottimizzare!
-  REPORT_RANK_TREE_WALK(T, y, n); // viene fatta una tree walk completa
+  // REPORT_RANK_TREE_WALK(T, y, n); // viene fatta una tree walk completa // OLD
+  REPORT_RANK_TREE_WALK(T, x, n); // viene fatta una tree walk completa
   // do {
   //   printf("\"%s\" ", x->id);
   //   if(x->left->n == n){ //TODO: da ottimizzare
@@ -2262,7 +2512,21 @@ int REPORT_RANK(t_rank_head *T, t_rank_node *x){
   //   }
   //   x = x->p;
   // } while(x != T->nil && x->n == n);
-  printf("%d;", n);
+  // c = n +'0';
+  // a[0] = c;
+  // a[1] = '\0';
+
+  // i = 0;
+  // do {
+    // a[i] = k + '0';
+  // } while (k != 0);
+
+  str = i_to_a(n);
+  fputs(str, stdout);
+  // printf("%d", n);
+  fputs(";", stdout);
+  free(str);
+  // printf("%d;", n);
   return 1;
 }
 
@@ -2270,82 +2534,167 @@ int REPORT_RANK(t_rank_head *T, t_rank_node *x){
 void REPORT_WALK_REL_TREE(t_rel_tree_head *T, t_rel_tree_node *x, t_rel_tree_node *max){
   if(x != T->nil){
     REPORT_WALK_REL_TREE(T, x->left, max);
+
+    // faccio la report solo se ranking non è vuoto
     if(x->ranking->root != x->ranking->nil){
-      printf("\"%s\" ", x->id); // print ent name
+      vuoto = 0;
+      printed_1 = 1;
+      printed_2 = 1;
+      fputs("\"", stdout);
+      fputs(x->id, stdout);
+      fputs("\" ", stdout);
+      // printf("\"%s\" ", x->id); // print ent name
       #ifdef DEBUG_REPORT
         if(x->ranking->root == x->ranking->nil)
           printf("aaa\n");
       #endif
       REPORT_RANK(x->ranking, x->ranking->root); // print rank
-      if(x != max)
-        printf(" ");
+      // if(x != max)
+      //   printf(" ");
+      printf(" ");
     }
+
     REPORT_WALK_REL_TREE(T, x->right, max);
   }
 }
 
-// FUNZIONE PRINCIPALE COMANDO "report"
-int report(t_rel_tree_head *T){
+// FUNZIONE PRIMARIA BIS DEL COMANDO "report"
+int report2(t_rel_tree_head *T){
   t_rel_tree_node *x = T->root;
+  t_rel_tree_node *y;
 
-  if(T->root == T->nil){
-    printf("none");
-  }
-  else{
-    while (x->right != T->nil) {
-      x = x->right;
+  // vado all'ultima relazione
+  // questo serve per mettere ; senza spazio alla fine
+  // while (x->right != T->nil) {
+  //   x = x->right;
+  // }
+
+  printed_2 = 0;
+
+  REPORT_WALK_REL_TREE(T, T->root, x);
+
+  // // prendo il predecessore della relazione
+  // y = REL_TREE_TREE_PREDECESSOR(T, x);
+  // while (y != T->nil && x->ranking->root == x->ranking->nil) {
+  //   x = y;
+  //   y = REL_TREE_TREE_PREDECESSOR(T, x);
+  // }
+  // if(x->ranking->root != x->ranking->nil){
+  //   REPORT_WALK_REL_TREE(T, T->root, x);
+  // }
+  // else{
+  //   // printf("none");
+  //   return 2;
+  // }
+  return 1;
+}
+
+// FUNZIONE PRINCIPALE COMANDO "report"
+int report(t_rel_tree_head *hash){
+  int i = 0;
+  int res = 0;
+
+  // #######################
+  // serve per fixare un bug
+  char input[MAX_INPUT];
+  fgets(input, MAX_INPUT, stdin);
+  // serve per fixare un bug
+  // #######################
+
+  vuoto = 1; // variabile globale
+  printed_1 = 0; // variabile globale
+
+  // scandisco la hash table
+  do{
+    // entro se nella posizione c'è almeno un elemento
+    if((hash+i)->root != (hash+i)->nil){
+      printed_1 = 0; // variabile globale
+      // if(vuoto != 1)
+      //   printf(" ");
+
+      // faccio la report di quel valore di hash
+      report2(hash+i);
+      // if(printed_1 == 1) fputs(" ", stdout);
+      // if(printed == 1) printf(" ");
+
     }
-    REPORT_WALK_REL_TREE(T, T->root, x);
+    i++;
+  } while(i < HASH_SIZE);
+
+  // vuoto rimane 0 se non ho trovato niente da stampare
+  if(vuoto == 1){
+    fputs("none", stdout);
+    // printf("none");
   }
-  printf("\n");
+
+  fputs("\n", stdout);
+  // printf("\n");
+
   return 1;
 }
 
 
 
 int main(){
-  char *comando = NULL;
+  char comando[MAX_INPUT]; // 6 + 1 (\0)
   int cmd;
   int i = 0;
   int size_cmd;
   size_t len = 0;
-  t_ent_head T_ent; //head delle entità
-  t_rel_tree_head T_rel_tree; //head delle relazioni
+
+  // array delle entità
+  t_ent_head* T_ent = init_hash_ent();
+  t_rel_tree_head* T_rel_tree = init_hash_rel_tree();
+
+  // t_ent_head T_ent; //head delle entità
+  // t_rel_tree_head T_rel_tree; //head delle relazioni
 
   // init entity tree
-  T_ent.nil = &NIL_ENT;
-  T_ent.root = T_ent.nil;
+  // T_ent.nil = &NIL_ENT;
+  // T_ent.root = T_ent.nil;
 
   // init relations tree
-  T_rel_tree.nil = &NIL_REL_TREE;
-  T_rel_tree.root = T_rel_tree.nil;
+  // T_rel_tree.nil = &NIL_REL_TREE;
+  // T_rel_tree.root = T_rel_tree.nil;
+
+  #ifdef DEBUG_STATS
+  clock_t start, end; // TEST
+  double cpu_time_used; // TEST
+  #endif
 
   // RICEZIONE PRIMO COMANDO
   // fgets(&comando[0], MAX_INPUT, stdin);
 
-  size_cmd = getline(&comando, &len, stdin);
-  i = strlen(comando)-1;
-  if(comando[i] == '\n')
-      comando[i] = '\0';
+  #ifdef DEBUG_STATS
+  start = clock(); // TEST
+  #endif
+
+  // size_cmd = getline(&comando, &len, stdin);
+  // i = strlen(comando)-1;
+  // if(comando[i] == '\n')
+      // comando[i] = '\0';
+  // fgets(comando, 7, stdin);
+  fgets(comando, 7, stdin);
+  // scanf("%s", comando);
   cmd = getcmd(comando);
 
   // FINO A CHE NON SCRIVE "end" RESTIAMO NEL CICLO
   while(cmd != 5){
     if(cmd == 0){ // addent
-      addent(&T_ent, comando);
+      addent(T_ent);
     }
     else if(cmd == 1){ // delent
-      delent(&T_ent, &T_rel_tree, comando);
+      delent(T_ent, T_rel_tree);
     }
     else if(cmd == 2){ // addrel
-      addrel(&T_ent, &T_rel_tree, comando);
+      addrel(T_ent, T_rel_tree);
     }
     else if(cmd == 3){ // delrel
       // delrel(&T_ent, &T_rel_tree, comando);
-      delrel(&T_rel_tree, comando);
+      delrel(T_rel_tree);
     }
     else if(cmd == 4){ // report
-      report(&T_rel_tree);
+      report(T_rel_tree);
       #ifdef DEBUG
         printf("Ent list: ");
         ENT_TREE_WALK(&T_ent, T_ent.root);
@@ -2363,14 +2712,22 @@ int main(){
 
     // RICEZIONE COMANDI SUCCESSIVI AL PRIMO
     // scanf("%s", comando);
-    comando = NULL;
-    len = 0;
-    size_cmd = getline(&comando, &len, stdin);
-    i = strlen(comando)-1;
-    if(comando[i] == '\n')
-        comando[i] = '\0';
+    // comando = NULL;
+    // len = 0;
+    // size_cmd = getline(&comando, &len, stdin);
+    // i = strlen(comando)-1;
+    // if(comando[i] == '\n')
+    //     comando[i] = '\0';
+    fgets(comando, 7, stdin);
+    // scanf("%s", comando);
     cmd = getcmd(comando);
   }
+
+  #ifdef DEBUG_STATS
+    end = clock();
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    printf("\n-time: %f\n", cpu_time_used);
+  #endif
 
   return 0;
 }
