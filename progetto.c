@@ -52,7 +52,7 @@ typedef struct rank_node t_rank_node;
 typedef struct rel_list t_rel_list;
 
 // #################
-// START ENTITY TREE 
+// START ENTITY TREE
 // #################
 struct ent_head{
   t_ent_node *root;
@@ -1803,6 +1803,17 @@ void find_rank(t_rank_head *T, t_rank_node *x, t_rank_node **z, char *id){
   }
 }
 
+t_rank_node *find_rank_v2(t_rel_list *x, t_rel_tree_node *rel_tree){
+  while (x != NULL) {
+    // if(x->rel->v == 1 && x->rel->rank_pointer->v == 1 && strcmp(id_rel, x->rel->rank_pointer->rel_tree_pointer->id) == 0)
+    if(x->rel->v == 1 && x->rel->rank_pointer->v == 1 && rel_tree == x->rel->rank_pointer->rel_tree_pointer)
+      break;
+    x = x->next;
+  }
+  if(x != NULL)
+    return x->rel->rank_pointer;
+  return NULL;
+}
 
 // ##################################
 // ##########   COMANDI    ##########
@@ -1899,6 +1910,8 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     printf("found ent to delete : %s\n", ent->id);
   #endif
 
+  // qui dovrebbe aver cancellato solo quella che dico io
+  // non l'algoritmo del prof che ne cancella un'altra
   deleted_ent = ENT_DELETE(hash_e+hash_e_v, ent);
   #ifdef DEBUG_DELENT
     printf("Deleted %s\n", deleted_ent->id);
@@ -1912,9 +1925,10 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
 
   deleted_ent->v = 0;
 
-  // disable all the rels with this ent
+  // CANCELLO TUTTE LE RELAZIONI IN "IN"
   in = deleted_ent->in_rel;
   while (in != NULL) {
+    // se la relazione è già stata eliminata
     if(in->rel->v != 1){
       #ifndef DISABLE_FREE_REL_NODE
         if(in->rel->v == 3)
@@ -1941,6 +1955,9 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
           in->rel->rank_pointer->v = 3;
         else
           in->rel->rank_pointer->v = 2;
+      #else
+        // rank cancellato
+        in->rel->rank_pointer->v = 0;
       #endif
     }
     else{
@@ -1949,7 +1966,7 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     }
 
     // POSSIBILE BUG_!!
-    // se rank h_p è vuoto, vuol dire che devo eliminare REL_TREE
+    // se rank_h_p è vuoto, vuol dire che devo eliminare REL_TREE
     // if(in->rel->rank_h_p->root == in->rel->rank_h_p->nil){
     //   REL_TREE_DELETE(R, in->rel->rank_pointer->rel_tree_pointer);
     // }
@@ -1959,6 +1976,8 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
       REL_TREE_DELETE(hash_rt+hash_rt_v, in->rel->rank_pointer->rel_tree_pointer);
       #ifndef DISABLE_FREE_REL_TREE
         free(in->rel->rank_pointer->rel_tree_pointer); // così perchè ho modificato l'algoritmo!
+      #else
+        in->rel->rank_pointer->rel_tree_pointer->v = 0;
       #endif
     }
 
@@ -1968,6 +1987,8 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     #ifndef DISABLE_FREE_STRANO
       in->rel->v = 2;
       free(in->rel);
+    #else
+      in->rel->v = 0;
     #endif
     // printf("rel deleted:  %s\n", deleted_rel->id);
 
@@ -1980,6 +2001,7 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     in = in->next;
   }
 
+  // CANCELLO TUTTE LE RELAZIONI IN "OUT"
   out = deleted_ent->out_rel;
   while (out != NULL) {
     // se v = 0, allora è già stata eliminata, non dobbiamo toccarla
@@ -1991,6 +2013,8 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
           out->rel->v == 3;
         else
           out->rel->v = 2;
+      #else
+        out->rel->v = 0;
       #endif
 
       out = out->next;
@@ -2010,6 +2034,8 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
           out->rel->rank_pointer->v = 3;
         else
           out->rel->rank_pointer->v = 2;
+      #else
+        out->rel->rank_pointer->v = 0;
       #endif
     }
     else{
@@ -2027,6 +2053,8 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
       REL_TREE_DELETE(hash_rt+hash_rt_v, out->rel->rank_pointer->rel_tree_pointer);
       #ifndef DISABLE_FREE_REL_TREE
         free(out->rel->rank_pointer->rel_tree_pointer); // così perchè ho modificato l'algoritmo!
+      #else
+        out->rel->rank_pointer->rel_tree_pointer->v = 0;
       #endif
     }
 
@@ -2034,6 +2062,8 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     #ifndef DISABLE_FREE_STRANO
       out->rel->v = 2; // valid bit a 2 (così poi lo elimino senza problemi)
       free(out->rel);
+    #else
+      out->rel->v = 0;
     #endif
 
     #ifdef DEBUG_TREE_WALK
@@ -2097,13 +2127,14 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
   hash_e_v_orig = hash_value(addrel_orig[0]);
   hash_e_v_dest = hash_value(addrel_dest[0]);
 
-  // prima di tutto cerchiamo se orig e dest esistono
+  // cerchiamo l'ent di ORIGINE
   if(find_ent_hash(hash_e, &orig, addrel_orig, hash_e_v_orig) == 0){ //search for ent 1
     #ifdef DEBUG_ADDREL
       printf("Ent 1 not found\n");
     #endif
     return 0; //ent orig not found
   }
+  // cerchiamo l'ent di DESTINAZIONE
   if(find_ent_hash(hash_e, &dest, addrel_dest, hash_e_v_dest) == 0){ //search for ent 2
     #ifdef DEBUG_ADDREL
       printf("Ent 2 not found\n");
@@ -2186,16 +2217,6 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     #endif
   }
 
-  out = malloc(sizeof(t_rel_list));
-  out->rel_head = rel_tree->relations;
-  out->rel = rel_node;
-  in = malloc(sizeof(t_rel_list));
-  in->rel_head = rel_tree->relations;
-  in->rel = rel_node;
-
-  ADD_TO_LIST(&(orig->out_rel), out);
-  ADD_TO_LIST(&(dest->in_rel), in);
-
   // cercare se l'in relation è già monitorata
   // se si update
   //            elimina
@@ -2204,7 +2225,12 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
   #ifdef DEBUG_ADDREL
     printf("\tDest id to rank: %s\n", dest->id);
   #endif
-  find_rank(rel_tree->ranking, rel_tree->ranking->root, &rank, dest->id); //TODO: ottimizzare?? questa è O(n)!!
+  // find_rank(rel_tree->ranking, rel_tree->ranking->root, &rank, dest->id); //TODO: ottimizzare?? questa è O(n)!!
+  rank = find_rank_v2(rel_node->dest->in_rel, rel_tree);
+  // rank = find_rank_v2(rel_node->dest->in_rel, addrel_rel_id);
+  // if(rank == NULL){
+    // rank = find_rank_v2(rel_node->orig->out_rel, addrel_rel_id);
+  // }
   if(rank != NULL){
     #ifdef DEBUG_ADDREL
       printf("\tRanking da aggiornare\n");
@@ -2237,6 +2263,7 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     #endif
     rank = malloc(sizeof(t_rank_node));
     strcpy(rank->id, addrel_dest);
+    rank->v = 1;
     rank->n = 1;
     rank->rel_tree_pointer = rel_tree;
     RANK_INSERT(rel_tree->ranking, rank);
@@ -2252,6 +2279,16 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     printf("-------Rank repo dopo insert: ---------\n");
     RANK_TREE_WALK(rel_tree->ranking, rel_tree->ranking->root);
   #endif
+
+  out = malloc(sizeof(t_rel_list));
+  out->rel_head = rel_tree->relations;
+  out->rel = rel_node;
+  in = malloc(sizeof(t_rel_list));
+  in->rel_head = rel_tree->relations;
+  in->rel = rel_node;
+
+  ADD_TO_LIST(&(orig->out_rel), out);
+  ADD_TO_LIST(&(dest->in_rel), in);
 
   return 1;
 }
@@ -2330,6 +2367,8 @@ int delrel(t_rel_tree_head *hash_rt){
       #ifdef DEBUG_DELREL
         printf("Eliminato Rel Tree\n");
       #endif
+    #else
+      rel_tree->v = 0;
     #endif
   }
   #ifdef DEBUG_DELREL
@@ -2346,8 +2385,12 @@ int delrel(t_rel_tree_head *hash_rt){
     #endif
     RANK_DELETE(rel->rank_h_p, rel->rank_pointer);
 
+    #ifndef DISABLE_FREE_RANK_NODE
     if(rel->rank_pointer->v == 1)
       rel->rank_pointer->v = 0;
+    #else
+      rel->rank_pointer->v = 0;
+    #endif
 
     #ifndef DISABLE_FREE_RANK_NODE
       // disattivato perché le free le faccio solo nel delent
