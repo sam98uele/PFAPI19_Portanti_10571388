@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h> // TEST
 
-#define MAX_INPUT 200
-#define MAX_ENT_ID 100
-#define MAX_REL_ID 100
+#define MAX_COMANDO 20
+#define MAX_INPUT 3000
+#define MAX_ENT_ID 1000
+#define MAX_REL_ID 1000
 
 #define HASH_SIZE 64 // 4096
 
@@ -25,20 +25,34 @@
 // #define DEBUG_TREE_WALK 0
 // #define DEBUG_3 0
 
+// #define DEBUG_ADDENT_WALK 0
+
 // #define DEBUG_HASH_1 0
 // #define DEBUG_HASH_2 0
 
 // #define DISABLE_ADD 0
 
-#define DISABLE_FREE 0
-#define DISABLE_FREE_ENT_NODE 0
-#define DISABLE_FREE_REL_TREE 0
-#define DISABLE_FREE_REL_NODE 0
-#define DISABLE_FREE_RANK_NODE 0 //rank node è puntato solo da rel
 
-#define DISABLE_FREE_STRANO 0
+// #define DISABLE_FREE_ENT_NODE 0
+// #define DISABLE_FREE_REL_TREE 0
+// #define DISABLE_FREE_REL_TREE_ID 0
+// #define DISABLE_FREE_REL_NODE 0
+// #define DISABLE_FREE_REL_NODE_DELENT 0
+// #define DISABLE_FREE_REL_NODE_DELREL 0
+// #define DISABLE_FREE_REL_NODE_ID 0
+// #define DISABLE_FREE_RANK_NODE 0 //rank node è puntato solo da rel
+// #define DISABLE_FREE_RANK_NODE_ID 0 //rank node è puntato solo da rel
+
+// #define DISABLE_FREE_REL_LIST 0
+// #define DISABLE_FREE_REL_LIST_DELREL 0
+// #define DISABLE_FREE_REL_LIST_ADDENT 0
+
 
 // #define NO_FIND 0
+
+// #define TEST_1 0
+
+// #define DISABLE_REPORT 0
 
 typedef struct ent_head t_ent_head;
 typedef struct ent_node t_ent_node;
@@ -60,7 +74,7 @@ struct ent_head{
 };
 
 struct ent_node{
-  char id[MAX_ENT_ID];
+  char *id; // [MAX_ENT_ID]
   int v; //valid bit = 0->deleted , 1->alive
   t_rel_list *in_rel; // list of relations in
   t_rel_list *out_rel; // list of relations out
@@ -80,6 +94,7 @@ struct ent_node{
 struct rel_list{
   t_rel_head *rel_head;
   t_rel_node *rel;
+  t_rel_list *prev;
   t_rel_list *next;
 };
 // #################
@@ -95,7 +110,7 @@ struct rel_tree_head{
 };
 
 struct rel_tree_node{
-  char id[MAX_REL_ID];
+  char *id; //[MAX_REL_ID]
   int v; //valid bit = 0->deleted , 1->alive
   t_rel_head *relations;
   t_rank_head *ranking;
@@ -119,10 +134,12 @@ struct rel_head{
 struct rel_node{
   // t_rel_tree_head rel; //head of rel_tree_node
   // char id[MAX_REL_ID];
-  char id[MAX_ENT_ID+MAX_REL_ID]; //id made by "from_ent"+"to_ent" !UNIQUE!
+  char *id; // [MAX_ENT_ID+MAX_REL_ID] //id made by "from_ent"+"to_ent" !UNIQUE!
   int v; //valid bit = 0->deleted , 1->alive
   t_ent_node *orig;
   t_ent_node *dest;
+  t_rel_list *orig_rel_list_pointer;
+  t_rel_list *dest_rel_list_pointer;
   t_rank_head *rank_h_p;
   t_rank_node *rank_pointer;
   int color; // 0 -> black - 1 -> red
@@ -148,7 +165,7 @@ struct rank_node{
   // t_rel_tree_head rel; //head of rel_tree_node
   // char id[MAX_REL_ID];
   int n; // number of entrance rels
-  char id[MAX_ENT_ID]; //id made by "to_ent" !UNIQUE! (relazioni entranti)
+  char *id; // [MAX_ENT_ID] //id made by "to_ent" !UNIQUE! (relazioni entranti)
   t_rel_tree_node *rel_tree_pointer;
   int v; //valid bit = 0->deleted , 1->alive
   int color; // 0 -> black - 1 -> red
@@ -241,7 +258,8 @@ int hash_value(char a){
 
 t_ent_head *init_hash_ent(){
   int i = 0;
-  t_ent_head* p = malloc(sizeof(t_ent_head)*HASH_SIZE);
+  // t_ent_head* p = (t_ent_head*) malloc(sizeof(t_ent_head)*HASH_SIZE);
+  t_ent_head* p = (t_ent_head*) calloc(HASH_SIZE, sizeof(t_ent_head));
   for(i = 0; i < HASH_SIZE; i++){
     (p+i)->nil = &NIL_ENT;
     (p+i)->root = ((p+i)->nil);
@@ -251,7 +269,8 @@ t_ent_head *init_hash_ent(){
 
 t_rel_tree_head *init_hash_rel_tree(){
   int i = 0;
-  t_rel_tree_head* p = malloc(sizeof(t_rel_tree_head)*HASH_SIZE);
+  // t_rel_tree_head* p = (t_rel_tree_head*) malloc(sizeof(t_rel_tree_head)*HASH_SIZE);
+  t_rel_tree_head* p = (t_rel_tree_head*) calloc(HASH_SIZE, sizeof(t_rel_tree_head));
   for(i = 0; i < HASH_SIZE; i++){
     (p+i)->nil = &NIL_REL_TREE;
     (p+i)->root = ((p+i)->nil);
@@ -276,7 +295,7 @@ t_rel_tree_head *init_hash_rel_tree(){
 // Return values:
 // 1 -> id_1 > id_2
 // 0 -> altrimenti
-int IS_GREATER_ID(char *id_1, char *id_2){
+int IS_GREATER_ID(char *id_1, char *id_2){ // DEPRECATED
   int i = 0;
   while (id_1[i] != '\0' && id_2[i] != '\0') {
     if(id_1[i] > id_2[i]) return 1;
@@ -295,7 +314,7 @@ int IS_GREATER_ID(char *id_1, char *id_2){
 // Return values:
 // 1 -> id_1 < id_2
 // 0 -> altrimenti
-int IS_LOWER_ID(char *id_1, char *id_2){
+int IS_LOWER_ID(char *id_1, char *id_2){ // DEPRECATED
   int i = 0;
   while (id_1[i] != '\0' && id_2[i] != '\0') {
     if(id_1[i] < id_2[i]) return 1;
@@ -316,7 +335,7 @@ int IS_LOWER_ID(char *id_1, char *id_2){
 // Return values:
 // 1 -> id_1 < id_2
 // 0 -> altrimenti
-int IS_LOWER_ID_RANK(int n1, char *id_1, int n2, char *id_2){
+int IS_LOWER_ID_RANK(int n1, char *id_1, int n2, char *id_2){ // DEPRECATED
   int i = 0;
   if(n1 == n2){ // se gli n sono uguali confrontiamo le stringhe
     while (id_1[i] != '\0' && id_2[i] != '\0') {
@@ -351,19 +370,41 @@ int IS_LOWER_ID_RANK_STRCMP(int n1, char *id_1, int n2, char *id_2){
   return 0; // equal. this is only >!
 }
 
-// LIST REL ENT
-int ADD_TO_LIST(t_rel_list **HEAD, t_rel_list *rel){
+
+// ###############################
+// #### REL LIST OPERATIONS ######
+// #####      START     ##########
+// ###############################
+
+void ADD_TO_LIST(t_rel_list **HEAD, t_rel_list *rel){
   rel->next = *HEAD;
+  if(*HEAD != NULL)
+    (*HEAD)->prev = rel;
   *HEAD = rel;
-  return 1;
+  rel->prev = NULL;
 }
+
+void REMOVE_FROM_LIST(t_rel_list **HEAD, t_rel_list *rel){
+  if(rel->prev != NULL)
+    rel->prev->next = rel->next;
+  else
+    *HEAD = rel->next;
+  if(rel->next != NULL)
+    rel->next->prev = rel->prev;
+}
+
+// ###############################
+// #### REL LIST OPERATIONS ######
+// #####       END      ##########
+// ###############################
+
 
 // ###############################
 // ##### ENT OPERATIONS ##########
 // #####      START     ##########
 // ###############################
 
-int ENT_LEFT_ROTATE(t_ent_head *T, t_ent_node *x){
+void ENT_LEFT_ROTATE(t_ent_head *T, t_ent_node *x){
   t_ent_node *y = x->right;
   x->right = y->left;
   if(y->left != T->nil)
@@ -377,37 +418,9 @@ int ENT_LEFT_ROTATE(t_ent_head *T, t_ent_node *x){
     x->p->right = y;
   y->left = x;
   x->p = y;
-
-  return 1;
 }
 
-int ENT_REL_WALK(t_rel_list *x){
-  // printf("a\n");
-  if(x != NULL){
-    if(x->rel->v == 1){
-      printf("%s ", x->rel->id);
-    }
-    ENT_REL_WALK(x->next);
-  }
-}
-
-int ENT_TREE_WALK(t_ent_head *T, t_ent_node *x){
-  // printf("a\n");
-  if(x != T->nil){
-    ENT_TREE_WALK(T, x->left);
-    printf("%s - ", x->id);
-    // printf("Rel in: ");
-    // ENT_REL_WALK(x->in_rel);
-    // printf("\n");
-    // printf("Rel out: ");
-    // ENT_REL_WALK(x->out_rel);
-    // printf("\n");
-    ENT_TREE_WALK(T, x->right);
-  }
-}
-
-
-int ENT_RIGHT_ROTATE(t_ent_head *T, t_ent_node *x){
+void ENT_RIGHT_ROTATE(t_ent_head *T, t_ent_node *x){
   t_ent_node *y = x->left;
   x->left = y->right;
   if(y->right != T->nil)
@@ -421,8 +434,28 @@ int ENT_RIGHT_ROTATE(t_ent_head *T, t_ent_node *x){
     x->p->left = y;
   y->right = x;
   x->p = y;
+}
 
-  return 1;
+void ENT_REL_WALK(t_rel_list *x){
+  // printf("a\n");
+  if(x != NULL){
+    if(x->rel->v == 1){
+      printf("%s ", x->rel->id);
+    }
+    ENT_REL_WALK(x->next);
+  }
+}
+
+void ENT_TREE_WALK(t_ent_head *T, t_ent_node *x){
+  // printf("a\n");
+  if(x != T->nil){
+    ENT_TREE_WALK(T, x->left);
+    printf(" %s ", x->id);
+    ENT_TREE_WALK(T, x->right);
+  }
+  else{
+    printf(" %s ", x->id);
+  }
 }
 
 t_ent_node *ENT_TREE_MINIMUM(t_ent_head *T, t_ent_node *x){
@@ -444,12 +477,11 @@ t_ent_node *ENT_TREE_SUCCESSOR(t_ent_head *T, t_ent_node *x){
   return y;
 }
 
-int ENT_INSERT_FIXUP(t_ent_head *T, t_ent_node *z){
+void ENT_INSERT_FIXUP(t_ent_head *T, t_ent_node *z){
   t_ent_node *x;
   t_ent_node *y;
   if(z == T->root){
     T->root->color = 0;
-    return 1;
   }
   else{
     x = z->p;
@@ -494,10 +526,10 @@ int ENT_INSERT_FIXUP(t_ent_head *T, t_ent_node *z){
       }
     }
     else{ //if the node is black. do nothing
-      return 1;
+      // return 1;
     }
   }
-  return 1;
+  // return 1;
 }
 
 int ENT_INSERT(t_ent_head *T, t_ent_node *z){
@@ -529,7 +561,7 @@ int ENT_INSERT(t_ent_head *T, t_ent_node *z){
   return 1;
 }
 
-int ENT_DELETE_FIXUP(t_ent_head *T, t_ent_node *x){
+void ENT_DELETE_FIXUP(t_ent_head *T, t_ent_node *x){
   t_ent_node *w;
   if(x->color == 1 || x->p == T->nil)
     x->color = 0; // case 0
@@ -587,7 +619,8 @@ int ENT_DELETE_FIXUP(t_ent_head *T, t_ent_node *x){
 
 t_ent_node *ENT_DELETE(t_ent_head *T, t_ent_node *z){
   int color;
-  t_ent_node temp; //temporaneo per salvare i dati durante lo scambio
+  t_ent_node y_temp; //temporaneo per salvare i dati durante lo scambio
+  t_ent_node z_temp; //temporaneo per salvare i dati durante lo scambio
 
   t_ent_node *x;
   t_ent_node *y;
@@ -600,83 +633,99 @@ t_ent_node *ENT_DELETE(t_ent_head *T, t_ent_node *z){
     y = z;
   else
     y = ENT_TREE_SUCCESSOR(T, z);
-  if(y->left != T->nil)
-    x = y->left;
-  else
-    x = y->right;
 
-  // START NEWW
+  // START MIO ALGORITMO
   color = y->color; // salviamo il colore di y
 
   // prima di eliminare il nodo, scambiamo y con z (se bisogna farlo)
   //    serve per evitare conflitti
   if(y != z){
-    temp.color = y->color;
-    temp.p = y->p;
-    temp.left = y->left;
-    temp.right = y->right;
+    y_temp.color = y->color;
+    y_temp.p = y->p;
+    y_temp.left = y->left;
+    y_temp.right = y->right;
+
+    z_temp.color = z->color;
+    z_temp.p = z->p;
+    z_temp.left = z->left;
+    z_temp.right = z->right;
+
+    // INIZIO INVERSIONE Y CON Z
 
     // metto y al posto di z
-    y->color = z->color;
-    if(z->p != y)
-      y->p = z->p;
+    y->color = z_temp.color;
+    if(z_temp.p != y)
+      y->p = z_temp.p;
     else
       y->p = z;
-    if(z->left != y)
-      y->left = z->left;
+    if(z_temp.left != y)
+      y->left = z_temp.left;
     else
       y->left = z;
-    if(z->right != y)
-      y->right = z->right;
+    if(z_temp.right != y)
+      y->right = z_temp.right;
     else
       y->right = z;
-
-    if(y->p == T->nil)
-      T->root = y;
-    else if(z == y->p->left)
-      y->p->left = y;
-    else
-      y->p->right = y;
-
-    if(y->left != T->nil && y->left != y)
-      y->left->p = y;
-    else if(y->left != T->nil && y->left == y)
-      z->p = y;
-    if(y->right != T->nil && y->right != y)
-      y->right->p = y;
-    else if(y->right != T->nil && y->right == y)
-      z->p = y;
-
 
     // metto z al posto di y
-    z->color = temp.color;
-    if(temp.p != z){
-      z->p = temp.p;
-    }
-    else{
+    z->color = y_temp.color;
+    if(y_temp.p != z)
+      z->p = y_temp.p;
+    else
       z->p = y;
-    }
-    z->left = temp.left;
-    z->right = temp.right;
+    if(y_temp.left != z)
+      z->left = y_temp.left;
+    else
+      z->left = y;
+    if(y_temp.right != z)
+      z->right = y_temp.right;
+    else
+      z->right = y;
+
+
+    // /////////////// FIX PER Y ////////////////////////
+    // sistemiamo i figli del padre
+    if(y->p == T->nil) // se è la radice
+      T->root = y; // andiamo ad aggiornare la radice
+    else if(z == y->p->left) // se z era il figlio sinistro
+      y->p->left = y; // poniamo figlio sinistro y
+    else if(z == y->p->right) // se z era il figlio sinistro
+      y->p->right = y; // poniamo figlio destro y
+
+    // ora andiamo a sistemare il padre dei figli
+    if(y->left != T->nil) // && y->left != y
+      y->left->p = y;
+    if(y->right != T->nil) // && y->right != y
+      y->right->p = y;
+
+
+    // /////////////// FIX PER Z ////////////////////////
     if(z->p == T->nil)
       T->root = z;
-    else if(y == z->p->left && z->p->left != z)
+    else if(y == z->p->left)
       z->p->left = z;
-    else if(y == z->p->left && z->p->left == z)
-      y->left = z;
-    else if(y == z->p->right && z->p->right != z)
+    else if(y == z->p->right)
       z->p->right = z;
-    else if(y == z->p->right && z->p->right == z)
-      y->right = z;
 
     if(z->left != T->nil)
       z->left->p = z;
     if(z->right != T->nil)
       z->right->p = z;
 
+    // ///////////////////////////////////////
+
+
+    // FINE INVERSIONE Y CON Z
+
     y = z;  // ora quello vero da eliminare torna ad essere z!
               // che ha preso il posto di y (e viceversa)
   }
+
+  if(y->left != T->nil)
+    x = y->left;
+  else
+    x = y->right;
+
   // START eliminazione
   x->p = y->p;
   // printf("x id: \n", );
@@ -690,7 +739,7 @@ t_ent_node *ENT_DELETE(t_ent_head *T, t_ent_node *z){
   // END NEWW
 
 
-  if(y->color == 0)
+  if(color == 0)
     ENT_DELETE_FIXUP(T, x);
   return y; //return the deleted node
 }
@@ -704,7 +753,7 @@ t_ent_node *ENT_DELETE(t_ent_head *T, t_ent_node *z){
 // ##### REL OPERATIONS ##########
 // #####      START     ##########
 // ###############################
-int REL_LEFT_ROTATE(t_rel_head *T, t_rel_node *x){
+void REL_LEFT_ROTATE(t_rel_head *T, t_rel_node *x){
   t_rel_node *y = x->right;
   x->right = y->left;
   if(y->left != T->nil)
@@ -718,11 +767,9 @@ int REL_LEFT_ROTATE(t_rel_head *T, t_rel_node *x){
     x->p->right = y;
   y->left = x;
   x->p = y;
-
-  return 1;
 }
 
-int REL_RIGHT_ROTATE(t_rel_head *T, t_rel_node *x){
+void REL_RIGHT_ROTATE(t_rel_head *T, t_rel_node *x){
   t_rel_node *y = x->left;
   x->left = y->right;
   if(y->right != T->nil)
@@ -736,11 +783,9 @@ int REL_RIGHT_ROTATE(t_rel_head *T, t_rel_node *x){
     x->p->left = y;
   y->right = x;
   x->p = y;
-
-  return 1;
 }
 
-int REL_TREE_WALK(t_rel_head *T, t_rel_node *x){
+void REL_TREE_WALK(t_rel_head *T, t_rel_node *x){
   // printf("a\n");
   if(x != T->nil){
     REL_TREE_WALK(T, x->left);
@@ -768,12 +813,11 @@ t_rel_node *REL_TREE_SUCCESSOR(t_rel_head *T, t_rel_node *x){
   return y;
 }
 
-int REL_INSERT_FIXUP(t_rel_head *T, t_rel_node *z){
+void REL_INSERT_FIXUP(t_rel_head *T, t_rel_node *z){
   t_rel_node *x;
   t_rel_node *y;
   if(z == T->root){
     T->root->color = 0;
-    return 1;
   }
   else{
     x = z->p;
@@ -818,10 +862,10 @@ int REL_INSERT_FIXUP(t_rel_head *T, t_rel_node *z){
       }
     }
     else{ //if the node is black. do nothing
-      return 1;
+      // return 1;
     }
   }
-  return 1;
+  // return 1;
 }
 
 int REL_INSERT(t_rel_head *T, t_rel_node *z){
@@ -848,7 +892,7 @@ int REL_INSERT(t_rel_head *T, t_rel_node *z){
   return 1;
 }
 
-int REL_DELETE_FIXUP(t_rel_head *T, t_rel_node *x){
+void REL_DELETE_FIXUP(t_rel_head *T, t_rel_node *x){
   t_rel_node *w;
   if(x->color == 1 || x->p == T->nil)
     x->color = 0; // case 0
@@ -885,9 +929,7 @@ int REL_DELETE_FIXUP(t_rel_head *T, t_rel_node *x){
       // printf("strada 2\n");
     #endif
     w = x->p->left;
-    // printf("aaaa1\n");
     if(w->color == 1){
-      // printf("aaaa2\n");
       w->color = 0;
       x->p->color = 1;
       REL_RIGHT_ROTATE(T, x->p);
@@ -895,34 +937,27 @@ int REL_DELETE_FIXUP(t_rel_head *T, t_rel_node *x){
     }
     if(w->right->color == 0 && w->left->color == 0){
       w->color = 1;
-      // printf("aaaa3\n");
       REL_DELETE_FIXUP(T, x->p);
     }
     else{
-      // printf("aaaa4\n");
       if(w->left->color == 0){
-        // printf("aaaa5\n");
         w->right->color = 0;
-        // printf("aaaa6\n");
         w->color = 1;
         REL_LEFT_ROTATE(T, w);
         w = x->p->left;
       }
-      // printf("aaaa7\n");
       w->color = x->p->color;
       x->p->color = 0;
       w->left->color = 0;
       REL_RIGHT_ROTATE(T, x->p);
-      // printf("aaaa8\n");
     }
   }
-  // printf("aaaa9\n");
-  return 1;
 }
 
 t_rel_node *REL_DELETE(t_rel_head *T, t_rel_node *z){
   int color;
-  t_rel_node temp; //temporaneo per salvare i dati durante lo scambio
+  t_rel_node y_temp; //temporaneo per salvare i dati durante lo scambio
+  t_rel_node z_temp; //temporaneo per salvare i dati durante lo scambio
 
   t_rel_node *x;
   t_rel_node *y;
@@ -935,10 +970,6 @@ t_rel_node *REL_DELETE(t_rel_head *T, t_rel_node *z){
     y = z;
   else
     y = REL_TREE_SUCCESSOR(T, z);
-  if(y->left != T->nil)
-    x = y->left;
-  else
-    x = y->right;
 
   // START NEWW
   color = y->color; // salviamo il colore di y
@@ -946,72 +977,92 @@ t_rel_node *REL_DELETE(t_rel_head *T, t_rel_node *z){
   // prima di eliminare il nodo, scambiamo y con z (se bisogna farlo)
   //    serve per evitare conflitti
   if(y != z){
-    temp.color = y->color;
-    temp.p = y->p;
-    temp.left = y->left;
-    temp.right = y->right;
+    y_temp.color = y->color;
+    y_temp.p = y->p;
+    y_temp.left = y->left;
+    y_temp.right = y->right;
+
+    z_temp.color = z->color;
+    z_temp.p = z->p;
+    z_temp.left = z->left;
+    z_temp.right = z->right;
+
+    // INIZIO INVERSIONE Y CON Z
 
     // metto y al posto di z
-    y->color = z->color;
-    if(z->p != y)
-      y->p = z->p;
+    y->color = z_temp.color;
+    if(z_temp.p != y)
+      y->p = z_temp.p;
     else
       y->p = z;
-    if(z->left != y)
-      y->left = z->left;
+    if(z_temp.left != y)
+      y->left = z_temp.left;
     else
       y->left = z;
-    if(z->right != y)
-      y->right = z->right;
+    if(z_temp.right != y)
+      y->right = z_temp.right;
     else
       y->right = z;
-
-    if(y->p == T->nil)
-      T->root = y;
-    else if(z == y->p->left)
-      y->p->left = y;
-    else
-      y->p->right = y;
-
-    if(y->left != T->nil && y->left != y)
-      y->left->p = y;
-    else if(y->left != T->nil && y->left == y)
-      z->p = y;
-    if(y->right != T->nil && y->right != y)
-      y->right->p = y;
-    else if(y->right != T->nil && y->right == y)
-      z->p = y;
-
 
     // metto z al posto di y
-    z->color = temp.color;
-    if(temp.p != z){
-      z->p = temp.p;
-    }
-    else{
+    z->color = y_temp.color;
+    if(y_temp.p != z)
+      z->p = y_temp.p;
+    else
       z->p = y;
-    }
-    z->left = temp.left;
-    z->right = temp.right;
+    if(y_temp.left != z)
+      z->left = y_temp.left;
+    else
+      z->left = y;
+    if(y_temp.right != z)
+      z->right = y_temp.right;
+    else
+      z->right = y;
+
+
+    // /////////////// FIX PER Y ////////////////////////
+    // sistemiamo i figli del padre
+    if(y->p == T->nil) // se è la radice
+      T->root = y; // andiamo ad aggiornare la radice
+    else if(z == y->p->left) // se z era il figlio sinistro
+      y->p->left = y; // poniamo figlio sinistro y
+    else if(z == y->p->right) // se z era il figlio sinistro
+      y->p->right = y; // poniamo figlio destro y
+
+    // ora andiamo a sistemare il padre dei figli
+    if(y->left != T->nil) // && y->left != y
+      y->left->p = y;
+    if(y->right != T->nil) // && y->right != y
+      y->right->p = y;
+
+
+    // /////////////// FIX PER Z ////////////////////////
     if(z->p == T->nil)
       T->root = z;
-    else if(y == z->p->left && z->p->left != z)
+    else if(y == z->p->left)
       z->p->left = z;
-    else if(y == z->p->left && z->p->left == z)
-      y->left = z;
-    else if(y == z->p->right && z->p->right != z)
+    else if(y == z->p->right)
       z->p->right = z;
-    else if(y == z->p->right && z->p->right == z)
-      y->right = z;
 
     if(z->left != T->nil)
       z->left->p = z;
     if(z->right != T->nil)
       z->right->p = z;
 
+    // ///////////////////////////////////////
+
+
+    // FINE INVERSIONE Y CON Z
+
     y = z;  // ora quello vero da eliminare torna ad essere z!
               // che ha preso il posto di y (e viceversa)
   }
+
+  if(y->left != T->nil)
+    x = y->left;
+  else
+    x = y->right;
+
   // START eliminazione
   x->p = y->p;
   // printf("x id: \n", );
@@ -1040,7 +1091,7 @@ t_rel_node *REL_DELETE(t_rel_head *T, t_rel_node *z){
 // ##### REL TREE OPERATIONS ##########
 // #####         START       ##########
 // ####################################
-int REL_TREE_LEFT_ROTATE(t_rel_tree_head *T, t_rel_tree_node *x){
+void REL_TREE_LEFT_ROTATE(t_rel_tree_head *T, t_rel_tree_node *x){
   t_rel_tree_node *y = x->right;
   x->right = y->left;
   if(y->left != T->nil)
@@ -1054,11 +1105,9 @@ int REL_TREE_LEFT_ROTATE(t_rel_tree_head *T, t_rel_tree_node *x){
     x->p->right = y;
   y->left = x;
   x->p = y;
-
-  return 1;
 }
 
-int REL_TREE_RIGHT_ROTATE(t_rel_tree_head *T, t_rel_tree_node *x){
+void REL_TREE_RIGHT_ROTATE(t_rel_tree_head *T, t_rel_tree_node *x){
   t_rel_tree_node *y = x->left;
   x->left = y->right;
   if(y->right != T->nil)
@@ -1072,11 +1121,9 @@ int REL_TREE_RIGHT_ROTATE(t_rel_tree_head *T, t_rel_tree_node *x){
     x->p->left = y;
   y->right = x;
   x->p = y;
-
-  return 1;
 }
 
-int REL_TREE_TREE_WALK(t_rel_tree_head *T, t_rel_tree_node *x){
+void REL_TREE_TREE_WALK(t_rel_tree_head *T, t_rel_tree_node *x){
   // printf("a\n");
   if(x != T->nil){
     REL_TREE_TREE_WALK(T, x->left);
@@ -1123,12 +1170,11 @@ t_rel_tree_node *REL_TREE_TREE_PREDECESSOR(t_rel_tree_head *T, t_rel_tree_node *
   return y;
 }
 
-int REL_TREE_INSERT_FIXUP(t_rel_tree_head *T, t_rel_tree_node *z){
+void REL_TREE_INSERT_FIXUP(t_rel_tree_head *T, t_rel_tree_node *z){
   t_rel_tree_node *x;
   t_rel_tree_node *y;
   if(z == T->root){
     T->root->color = 0;
-    return 1;
   }
   else{
     x = z->p;
@@ -1173,10 +1219,10 @@ int REL_TREE_INSERT_FIXUP(t_rel_tree_head *T, t_rel_tree_node *z){
       }
     }
     else{ //if the node is black. do nothing
-      return 1;
+      // return 1;
     }
   }
-  return 1;
+  // return 1;
 }
 
 int REL_TREE_INSERT(t_rel_tree_head *T, t_rel_tree_node *z){
@@ -1203,7 +1249,7 @@ int REL_TREE_INSERT(t_rel_tree_head *T, t_rel_tree_node *z){
   return 1;
 }
 
-int REL_TREE_DELETE_FIXUP(t_rel_tree_head *T, t_rel_tree_node *x){
+void REL_TREE_DELETE_FIXUP(t_rel_tree_head *T, t_rel_tree_node *x){
   t_rel_tree_node *w;
   if(x->color == 1 || x->p == T->nil)
     x->color = 0; // case 0
@@ -1260,30 +1306,122 @@ int REL_TREE_DELETE_FIXUP(t_rel_tree_head *T, t_rel_tree_node *x){
 }
 
 t_rel_tree_node *REL_TREE_DELETE(t_rel_tree_head *T, t_rel_tree_node *z){
+  int color;
+  t_rel_tree_node y_temp;
+  t_rel_tree_node z_temp;
+
   t_rel_tree_node *x;
   t_rel_tree_node *y;
+
   if(z->left == T->nil || z->right == T->nil)
     y = z;
   else
     y = REL_TREE_TREE_SUCCESSOR(T, z);
+
+  color = y->color; // salviamo il colore di y
+
+  // prima di eliminare il nodo, scambiamo y con z (se bisogna farlo)
+  //    serve per evitare conflitti
+  if(y != z){
+    y_temp.color = y->color;
+    y_temp.p = y->p;
+    y_temp.left = y->left;
+    y_temp.right = y->right;
+
+    z_temp.color = z->color;
+    z_temp.p = z->p;
+    z_temp.left = z->left;
+    z_temp.right = z->right;
+
+    // INIZIO INVERSIONE Y CON Z
+
+    // metto y al posto di z
+    y->color = z_temp.color;
+    if(z_temp.p != y)
+      y->p = z_temp.p;
+    else
+      y->p = z;
+    if(z_temp.left != y)
+      y->left = z_temp.left;
+    else
+      y->left = z;
+    if(z_temp.right != y)
+      y->right = z_temp.right;
+    else
+      y->right = z;
+
+    // metto z al posto di y
+    z->color = y_temp.color;
+    if(y_temp.p != z)
+      z->p = y_temp.p;
+    else
+      z->p = y;
+    if(y_temp.left != z)
+      z->left = y_temp.left;
+    else
+      z->left = y;
+    if(y_temp.right != z)
+      z->right = y_temp.right;
+    else
+      z->right = y;
+
+
+    // /////////////// FIX PER Y ////////////////////////
+    // sistemiamo i figli del padre
+    if(y->p == T->nil) // se è la radice
+      T->root = y; // andiamo ad aggiornare la radice
+    else if(z == y->p->left) // se z era il figlio sinistro
+      y->p->left = y; // poniamo figlio sinistro y
+    else if(z == y->p->right) // se z era il figlio sinistro
+      y->p->right = y; // poniamo figlio destro y
+
+    // ora andiamo a sistemare il padre dei figli
+    if(y->left != T->nil) // && y->left != y
+      y->left->p = y;
+    if(y->right != T->nil) // && y->right != y
+      y->right->p = y;
+
+
+    // /////////////// FIX PER Z ////////////////////////
+    if(z->p == T->nil)
+      T->root = z;
+    else if(y == z->p->left)
+      z->p->left = z;
+    else if(y == z->p->right)
+      z->p->right = z;
+
+    if(z->left != T->nil)
+      z->left->p = z;
+    if(z->right != T->nil)
+      z->right->p = z;
+
+    // ///////////////////////////////////////
+
+
+    // FINE INVERSIONE Y CON Z
+
+    y = z;  // ora quello vero da eliminare torna ad essere z!
+              // che ha preso il posto di y (e viceversa)
+  }
+
   if(y->left != T->nil)
     x = y->left;
   else
     x = y->right;
+
+  // START eliminazione
   x->p = y->p;
+  // printf("x id: \n", );
   if(y->p == T->nil)
     T->root = x;
   else if(y == y->p->left)
     y->p->left = x;
   else
     y->p->right = x;
-  if(y != z){
-    strcpy(z->id, y->id);
-    z->v = y->v;
-    z->ranking = y->ranking;
-    z->relations = y->relations;
-  }
-  if(y->color == 0)
+  // END eliminazione
+
+
+  if(color == 0)
     REL_TREE_DELETE_FIXUP(T, x);
   return y; //return the deleted node
 }
@@ -1392,7 +1530,6 @@ int RANK_INSERT_FIXUP(t_rank_head *T, t_rank_node *z){
   t_rank_node *y;
   if(z == T->root){
     T->root->color = 0;
-    return 1;
   }
   else{
     x = z->p;
@@ -1448,22 +1585,18 @@ int RANK_INSERT(t_rank_head *T, t_rank_node *z){
   t_rank_node *x = T->root;
   while(x != T->nil){
     y = x;
-    if(IS_LOWER_ID_RANK_STRCMP(z->n, z->id, x->n, x->id)){
+    if(IS_LOWER_ID_RANK_STRCMP(z->n, z->id, x->n, x->id))
       x = x->left;
-    }
-    else{
+    else
       x = x->right;
-    }
   }
   z->p = y;
   if(y == T->nil)
     T->root = z;
-  else if(IS_LOWER_ID_RANK_STRCMP(z->n, z->id, y->n, y->id)){
+  else if(IS_LOWER_ID_RANK_STRCMP(z->n, z->id, y->n, y->id))
     y->left = z;
-  }
-  else{
+  else
     y->right = z;
-  }
   z->left = T->nil;
   z->right = T->nil;
   z->color = 1;
@@ -1529,7 +1662,8 @@ int RANK_DELETE_FIXUP(t_rank_head *T, t_rank_node *x){
 
 t_rank_node *RANK_DELETE(t_rank_head *T, t_rank_node *z){
   int color;
-  t_rank_node temp; //temporaneo per salvare i dati durante lo scambio
+  t_rank_node y_temp; //temporaneo per salvare i dati durante lo scambio
+  t_rank_node z_temp; //temporaneo per salvare i dati durante lo scambio
 
   t_rank_node *x;
   t_rank_node *y;
@@ -1540,86 +1674,100 @@ t_rank_node *RANK_DELETE(t_rank_head *T, t_rank_node *z){
       printf("dir\n");
     #endif
   }
-  else{
+  else
     y = RANK_TREE_SUCCESSOR(T, z);
-  }
-  if(y->left != T->nil)
-    x = y->left;
-  else{
-    x = y->right;
-  }
 
   color = y->color; // salviamo il colore di y
 
   // prima di eliminare il nodo, scambiamo y con z (se bisogna farlo)
   //    serve per evitare conflitti
   if(y != z){
-    temp.color = y->color;
-    temp.p = y->p;
-    temp.left = y->left;
-    temp.right = y->right;
+    y_temp.color = y->color;
+    y_temp.p = y->p;
+    y_temp.left = y->left;
+    y_temp.right = y->right;
+
+    z_temp.color = z->color;
+    z_temp.p = z->p;
+    z_temp.left = z->left;
+    z_temp.right = z->right;
+
+    // INIZIO INVERSIONE Y CON Z
 
     // metto y al posto di z
-    y->color = z->color;
-    if(z->p != y)
-      y->p = z->p;
+    y->color = z_temp.color;
+    if(z_temp.p != y)
+      y->p = z_temp.p;
     else
       y->p = z;
-    if(z->left != y)
-      y->left = z->left;
+    if(z_temp.left != y)
+      y->left = z_temp.left;
     else
       y->left = z;
-    if(z->right != y)
-      y->right = z->right;
+    if(z_temp.right != y)
+      y->right = z_temp.right;
     else
       y->right = z;
-
-    if(y->p == T->nil)
-      T->root = y;
-    else if(z == y->p->left)
-      y->p->left = y;
-    else
-      y->p->right = y;
-
-    if(y->left != T->nil && y->left != y)
-      y->left->p = y;
-    else if(y->left != T->nil && y->left == y)
-      z->p = y;
-    if(y->right != T->nil && y->right != y)
-      y->right->p = y;
-    else if(y->right != T->nil && y->right == y)
-      z->p = y;
-
 
     // metto z al posto di y
-    z->color = temp.color;
-    if(temp.p != z){
-      z->p = temp.p;
-    }
-    else{
+    z->color = y_temp.color;
+    if(y_temp.p != z)
+      z->p = y_temp.p;
+    else
       z->p = y;
-    }
-    z->left = temp.left;
-    z->right = temp.right;
+    if(y_temp.left != z)
+      z->left = y_temp.left;
+    else
+      z->left = y;
+    if(y_temp.right != z)
+      z->right = y_temp.right;
+    else
+      z->right = y;
+
+
+    // /////////////// FIX PER Y ////////////////////////
+    // sistemiamo i figli del padre
+    if(y->p == T->nil) // se è la radice
+      T->root = y; // andiamo ad aggiornare la radice
+    else if(z == y->p->left) // se z era il figlio sinistro
+      y->p->left = y; // poniamo figlio sinistro y
+    else if(z == y->p->right) // se z era il figlio sinistro
+      y->p->right = y; // poniamo figlio destro y
+
+    // ora andiamo a sistemare il padre dei figli
+    if(y->left != T->nil) // && y->left != y
+      y->left->p = y;
+    if(y->right != T->nil) // && y->right != y
+      y->right->p = y;
+
+
+    // /////////////// FIX PER Z ////////////////////////
     if(z->p == T->nil)
       T->root = z;
-    else if(y == z->p->left && z->p->left != z)
+    else if(y == z->p->left)
       z->p->left = z;
-    else if(y == z->p->left && z->p->left == z)
-      y->left = z;
-    else if(y == z->p->right && z->p->right != z)
+    else if(y == z->p->right)
       z->p->right = z;
-    else if(y == z->p->right && z->p->right == z)
-      y->right = z;
 
     if(z->left != T->nil)
       z->left->p = z;
     if(z->right != T->nil)
       z->right->p = z;
 
+    // ///////////////////////////////////////
+
+
+    // FINE INVERSIONE Y CON Z
+
     y = z;  // ora quello vero da eliminare torna ad essere z!
               // che ha preso il posto di y (e viceversa)
   }
+
+  if(y->left != T->nil)
+    x = y->left;
+  else
+    x = y->right;
+
   // START eliminazione
   x->p = y->p;
   // printf("x id: \n", );
@@ -1639,7 +1787,8 @@ t_rank_node *RANK_DELETE(t_rank_head *T, t_rank_node *z){
 
   if(color == 0)
     RANK_DELETE_FIXUP(T, x);
-  return z; //return the deleted node
+
+  return y; //return the deleted node
 }
 
 // ################################
@@ -1711,7 +1860,7 @@ int retrive_addrel_delrel_args(char *input, char *orig, char *dest, char *rel){
 }
 
 
-int check_existence_ent_tree(t_ent_head *T, t_ent_node *x, char *id, int i){
+int check_existence_ent_tree(t_ent_head *T, t_ent_node *x, char *id){
   if(x == T->nil){
     return 0;
   }
@@ -1719,15 +1868,13 @@ int check_existence_ent_tree(t_ent_head *T, t_ent_node *x, char *id, int i){
     return 1;
   }
   if(strcmp(id, x->id) < 0) //IS_LOWER_ID(id, x->id)
-    return check_existence_ent_tree(T, (x->left), id, i);
+    return check_existence_ent_tree(T, (x->left), id);
   else
-    return check_existence_ent_tree(T, (x->right), id, i);
+    return check_existence_ent_tree(T, (x->right), id);
 }
 
 int check_existence_ent_hash(t_ent_head* hash_a, char *id, int v){
-  // if(hash_a[v] == NULL)
-    // return 0;
-  return check_existence_ent_tree((hash_a+v), (hash_a+v)->root, id, 0);
+  return check_existence_ent_tree((hash_a+v), (hash_a+v)->root, id);
 }
 
 
@@ -1783,9 +1930,6 @@ int find_rel_tree(t_rel_tree_head *T, t_rel_tree_node *x, t_rel_tree_node **z, c
 }
 
 int find_rel_tree_hash(t_rel_tree_head *hash_rt, t_rel_tree_node **z, char *id, int v){
-  #ifdef DEBUG_HASH_1
-    printf("Hash val: %d\n", v);
-  #endif
   return find_rel_tree((hash_rt+v), (hash_rt+v)->root, z, id);
 }
 
@@ -1806,7 +1950,8 @@ void find_rank(t_rank_head *T, t_rank_node *x, t_rank_node **z, char *id){
 t_rank_node *find_rank_v2(t_rel_list *x, t_rel_tree_node *rel_tree){
   while (x != NULL) {
     // if(x->rel->v == 1 && x->rel->rank_pointer->v == 1 && strcmp(id_rel, x->rel->rank_pointer->rel_tree_pointer->id) == 0)
-    if(x->rel->v == 1 && x->rel->rank_pointer->v == 1 && rel_tree == x->rel->rank_pointer->rel_tree_pointer)
+    // if(x->rel->v == 1 && x->rel->rank_pointer->v == 1 && rel_tree == x->rel->rank_pointer->rel_tree_pointer)
+    if(x->rel->v == 1 && x->rel->rank_pointer->v == 1 && x->rel->rank_pointer->rel_tree_pointer->v == 1 && rel_tree == x->rel->rank_pointer->rel_tree_pointer)
       break;
     x = x->next;
   }
@@ -1814,6 +1959,7 @@ t_rank_node *find_rank_v2(t_rel_list *x, t_rel_tree_node *rel_tree){
     return x->rel->rank_pointer;
   return NULL;
 }
+
 
 // ##################################
 // ##########   COMANDI    ##########
@@ -1824,6 +1970,8 @@ int addent(t_ent_head *hash){
   char input[MAX_INPUT];
   char addent_id[MAX_ENT_ID];
   int hash_v;
+  char *r; // temp tanto alla fine della funzione viene distrutto
+
   t_ent_node *ent;
 
   // t_ent_node ent;
@@ -1834,27 +1982,26 @@ int addent(t_ent_head *hash){
   #endif
 
   // ADDENT !!
-  fgets(input, MAX_INPUT, stdin);
+  r = fgets(input, MAX_INPUT, stdin);
   retrive_addent_delent_id(input, addent_id);
   // sscanf(input," \"%49[^\"]\"", addent_id);
 
   // calcoliamo l'hash value
   hash_v = hash_value(addent_id[0]);
 
-  #ifndef NO_FIND
-    if(check_existence_ent_hash(hash, addent_id, hash_v) != 0){
-      #ifdef DEBUG_ADDENT
-        printf("esiste gia' %s\n", addent_id);
-      #endif
-      return 1; //if the ent already exists, do nothing
-    }
-  #endif
+  if(check_existence_ent_hash(hash, addent_id, hash_v) != 0){
+    #ifdef DEBUG_ADDENT
+    printf("esiste gia' %s\n", addent_id);
+    #endif
+    return 1; //if the ent already exists, do nothing
+  }
 
   // crea nuova ent
-  ent = malloc(sizeof(t_ent_node));
+  ent = (t_ent_node*) malloc(sizeof(t_ent_node));
 
   // copy id
-  strcpy(ent->id, addent_id);
+  ent->id = (char*) calloc(strlen(addent_id) + 1, sizeof(char));
+  ent->id = strcpy(ent->id, addent_id);
   ent->v = 1;
   ent->in_rel = NULL;
   ent->out_rel = NULL;
@@ -1865,9 +2012,9 @@ int addent(t_ent_head *hash){
     #endif
   }
 
-  #ifdef DEBUG_ADDENT
+  #ifdef DEBUG_ADDENT_WALK
     printf("!!Tree dopo insert: \n");
-    ENT_TREE_WALK(T, T->root);
+    ENT_TREE_WALK(hash+hash_v, (hash+hash_v)->root);
     printf("\n");
   #endif
 
@@ -1878,18 +2025,24 @@ int addent(t_ent_head *hash){
 int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
   char input[MAX_INPUT];
   char delent_id[MAX_ENT_ID];
+  char *r;
+
   t_ent_node *ent;
   t_ent_node *deleted_ent;
 
   t_rel_list *in;
+  t_rel_list *in_tofree;
   t_rel_list *out;
+  t_rel_list *out_tofree;
 
+  t_rel_tree_node *deleted_rel_tree;
   t_rel_node *deleted_rel;
+  t_rank_node *deleted_rank;
 
   int hash_e_v;
   int hash_rt_v;
 
-  fgets(input, MAX_INPUT, stdin);
+  r = fgets(input, MAX_INPUT, stdin);
   retrive_addent_delent_id(input, delent_id);
   // sscanf(input," \"%49[^\"]\"", delent_id);
 
@@ -1917,53 +2070,25 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     printf("Deleted %s\n", deleted_ent->id);
   #endif
 
-  // if(deleted_ent != ent){
-  //   #ifdef DEBUG_DELENT
-  //     printf("Deleted an other ent\n");
-  //   #endif
-  // }
+  #ifdef TEST_1
+    if(deleted_ent != ent){
+        printf("Deleted an other ent\n");
+    }
+  #endif
 
   deleted_ent->v = 0;
 
   // CANCELLO TUTTE LE RELAZIONI IN "IN"
   in = deleted_ent->in_rel;
   while (in != NULL) {
-    // se la relazione è già stata eliminata
-    if(in->rel->v != 1){
-      #ifndef DISABLE_FREE_REL_NODE
-        if(in->rel->v == 3)
-          free(in->rel);
-        else if(in->rel->v == 2) // la relazione è stata eliminata prima da out list
-          in->rel->v = 3;
-        else
-          in->rel->v = 2;
-      #endif
-      in = in->next;
-      // printf("bb\n");
-      continue;
-    }
+    deleted_rel = REL_DELETE(in->rel_head, in->rel);
+    in->rel->v = 0;
 
-    in->rel->v = 2;
-
-    RANK_DELETE(in->rel->rank_h_p, in->rel->rank_pointer);
-    in->rel->rank_pointer->n = in->rel->rank_pointer->n - 1;
-    if(in->rel->rank_pointer->n == 0){
-      #ifndef DISABLE_FREE_RANK_NODE
-        if(in->rel->rank_pointer->v == 3)
-            free(in->rel->rank_pointer); // così perchè ho modificato l'algoritmo!
-        else if(in->rel->rank_pointer->v == 2) // passato prima da out
-          in->rel->rank_pointer->v = 3;
-        else
-          in->rel->rank_pointer->v = 2;
-      #else
-        // rank cancellato
-        in->rel->rank_pointer->v = 0;
-      #endif
-    }
-    else{
-      // update rank (lo reinseriamo)
-      RANK_INSERT(in->rel->rank_h_p, in->rel->rank_pointer);
-    }
+    #ifdef TEST_1
+      if(deleted_rel != in->rel){
+        printf("deleted an other rel\n");
+      }
+    #endif
 
     // POSSIBILE BUG_!!
     // se rank_h_p è vuoto, vuol dire che devo eliminare REL_TREE
@@ -1973,75 +2098,83 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     // devo cancellare la rel tree solo se non ci sono più rel!
     if(in->rel->rank_pointer->rel_tree_pointer->relations->root == in->rel->rank_pointer->rel_tree_pointer->relations->nil){
       hash_rt_v = hash_value(in->rel->rank_pointer->rel_tree_pointer->id[0]);
-      REL_TREE_DELETE(hash_rt+hash_rt_v, in->rel->rank_pointer->rel_tree_pointer);
+
+      deleted_rel_tree = REL_TREE_DELETE(hash_rt+hash_rt_v, in->rel->rank_pointer->rel_tree_pointer);
+
+      in->rel->rank_pointer->rel_tree_pointer->v = 0;
+
+      #ifdef TEST_1
+        if(deleted_rel_tree != in->rel->rank_pointer->rel_tree_pointer)
+          printf("deleted an other rel tree 2\n");
+      #endif
+
       #ifndef DISABLE_FREE_REL_TREE
+        free(in->rel->rank_pointer->rel_tree_pointer->id); // così perchè ho modificato l'algoritmo!
         free(in->rel->rank_pointer->rel_tree_pointer); // così perchè ho modificato l'algoritmo!
-      #else
-        in->rel->rank_pointer->rel_tree_pointer->v = 0;
       #endif
     }
 
-    // printf("rel to delete: %s\n", in->rel->id);
-    // cancelliamo la relazione
-    deleted_rel = REL_DELETE(in->rel_head, in->rel);
-    #ifndef DISABLE_FREE_STRANO
-      in->rel->v = 2;
+    if((in->rel->rank_pointer->n - 1) == 0){
+      deleted_rank = RANK_DELETE(in->rel->rank_h_p, in->rel->rank_pointer);
+
+      #ifdef TEST_1
+        if(deleted_rank != in->rel->rank_pointer)
+          printf("deleted an other rank\n");
+      #endif
+
+      in->rel->rank_pointer->n = in->rel->rank_pointer->n - 1;
+
+      #ifndef DISABLE_FREE_RANK_NODE
+        free(in->rel->rank_pointer->id);
+        free(in->rel->rank_pointer);
+      #else
+        in->rel->rank_pointer->v = 0;
+      #endif
+    }
+    else{
+      // update rank (lo reinseriamo)
+      deleted_rank = RANK_DELETE(in->rel->rank_h_p, in->rel->rank_pointer);
+
+      #ifdef TEST_1
+        if(deleted_rank != in->rel->rank_pointer)
+          printf("deleted an other rank\n");
+      #endif
+
+      in->rel->rank_pointer->n = in->rel->rank_pointer->n - 1;
+
+      RANK_INSERT(in->rel->rank_h_p, in->rel->rank_pointer);
+    }
+
+    REMOVE_FROM_LIST(&(deleted_rel->orig->out_rel), deleted_rel->orig_rel_list_pointer);
+
+    #ifndef DISABLE_FREE_REL_LIST_ADDENT
+      free(deleted_rel->orig_rel_list_pointer);
+    #endif
+
+    #ifndef DISABLE_FREE_REL_NODE_DELENT
+      free(in->rel->id);
       free(in->rel);
-    #else
-      in->rel->v = 0;
-    #endif
-    // printf("rel deleted:  %s\n", deleted_rel->id);
-
-    #ifdef DEBUG_TREE_WALK
-      printf("\t\tRANK walk after delent: ");
-      RANK_TREE_WALK(in->rel->rank_h_p, in->rel->rank_h_p->root);
-      printf("\n\n");
     #endif
 
+    in_tofree = in;
     in = in->next;
+
+    #ifndef DISABLE_FREE_REL_LIST
+      free(in_tofree);
+    #endif
   }
 
   // CANCELLO TUTTE LE RELAZIONI IN "OUT"
   out = deleted_ent->out_rel;
   while (out != NULL) {
-    // se v = 0, allora è già stata eliminata, non dobbiamo toccarla
-    if(out->rel->v != 1){
-      #ifndef DISABLE_FREE_REL_NODE
-        if(out->rel->v == 3)
-          free(out->rel);
-        else if(out->rel->v == 2)
-          out->rel->v == 3;
-        else
-          out->rel->v = 2;
-      #else
-        out->rel->v = 0;
-      #endif
+    deleted_rel = REL_DELETE(out->rel_head, out->rel);
+    out->rel->v = 0;
 
-      out = out->next;
-      // printf("aa\n");
-      continue;
-    }
-
-    out->rel->v = 2;
-
-    RANK_DELETE(out->rel->rank_h_p, out->rel->rank_pointer);
-    out->rel->rank_pointer->n = out->rel->rank_pointer->n - 1;
-    if(out->rel->rank_pointer->n == 0){
-      #ifndef DISABLE_FREE_RANK_NODE
-        if(out->rel->rank_pointer->v == 3)
-            free(out->rel->rank_pointer); // così perchè ho modificato l'algoritmo!
-        else if(out->rel->rank_pointer->v == 2) // passato prima da out
-          out->rel->rank_pointer->v = 3;
-        else
-          out->rel->rank_pointer->v = 2;
-      #else
-        out->rel->rank_pointer->v = 0;
-      #endif
-    }
-    else{
-      // update (lo reinseriamo)
-      RANK_INSERT(out->rel->rank_h_p, out->rel->rank_pointer);
-    }
+    #ifdef TEST_1
+      if(deleted_rel != out->rel){
+        printf("deleted an other rel\n");
+      }
+    #endif
 
     // POSSIBILE BUG_!!
     // se rank h_p è vuoto, vuol dire che devo eliminare REL_TREE
@@ -2050,29 +2183,72 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     // }
     if(out->rel->rank_pointer->rel_tree_pointer->relations->root == out->rel->rank_pointer->rel_tree_pointer->relations->nil){
       hash_rt_v = hash_value(out->rel->rank_pointer->rel_tree_pointer->id[0]);
-      REL_TREE_DELETE(hash_rt+hash_rt_v, out->rel->rank_pointer->rel_tree_pointer);
+
+      deleted_rel_tree = REL_TREE_DELETE(hash_rt+hash_rt_v, out->rel->rank_pointer->rel_tree_pointer);
+
+      #ifdef TEST_1
+        if(deleted_rel_tree != out->rel->rank_pointer->rel_tree_pointer)
+          printf("deleted an other rank\n");
+      #endif
+
       #ifndef DISABLE_FREE_REL_TREE
+        free(out->rel->rank_pointer->rel_tree_pointer->id); // così perchè ho modificato l'algoritmo!
         free(out->rel->rank_pointer->rel_tree_pointer); // così perchè ho modificato l'algoritmo!
       #else
         out->rel->rank_pointer->rel_tree_pointer->v = 0;
       #endif
     }
 
-    REL_DELETE(out->rel_head, out->rel);
-    #ifndef DISABLE_FREE_STRANO
-      out->rel->v = 2; // valid bit a 2 (così poi lo elimino senza problemi)
-      free(out->rel);
+    if((out->rel->rank_pointer->n - 1) == 0){
+      deleted_rank = RANK_DELETE(out->rel->rank_h_p, out->rel->rank_pointer);
+
+      #ifdef TEST_1
+        if(deleted_rank != out->rel->rank_pointer)
+          printf("deleted an other rank\n");
+      #endif
+
+      out->rel->rank_pointer->n = out->rel->rank_pointer->n - 1;
+
+      #ifndef DISABLE_FREE_RANK_NODE
+        free(out->rel->rank_pointer->id);
+        free(out->rel->rank_pointer);
+      #else
+        out->rel->rank_pointer->v = 0;
+      #endif
+    }
+    else{
+      // update (lo reinseriamo)
+      deleted_rank = RANK_DELETE(out->rel->rank_h_p, out->rel->rank_pointer);
+
+      #ifdef TEST_1
+        if(deleted_rank != out->rel->rank_pointer)
+          printf("deleted an other rank\n");
+      #endif
+
+      out->rel->rank_pointer->n = out->rel->rank_pointer->n - 1;
+
+      RANK_INSERT(out->rel->rank_h_p, out->rel->rank_pointer);
+    }
+
+    REMOVE_FROM_LIST(&(deleted_rel->dest->in_rel), deleted_rel->dest_rel_list_pointer);
+
+    #ifndef DISABLE_FREE_REL_LIST_ADDENT
+      free(deleted_rel->dest_rel_list_pointer);
     #else
       out->rel->v = 0;
     #endif
 
-    #ifdef DEBUG_TREE_WALK
-      printf("\t\tRANK walk after delent: ");
-      RANK_TREE_WALK(out->rel->rank_h_p, out->rel->rank_h_p->root);
-      printf("\n\n");
+    #ifndef DISABLE_FREE_REL_NODE_DELENT
+      free(out->rel->id);
+      free(out->rel);
     #endif
 
+    out_tofree = out;
     out = out->next;
+
+    #ifndef DISABLE_FREE_REL_LIST
+      free(out_tofree);
+    #endif
   }
 
   #ifdef DEBUG
@@ -2086,6 +2262,10 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
   #endif
 
   #ifndef DISABLE_FREE_ENT_NODE
+    // possiamo tranquillamente farlo, perché se cancello
+    // una entità, poi non ci saranno più relazioni con
+    // quella entità
+    free(deleted_ent->id);
     free(deleted_ent);
   #endif
 
@@ -2099,6 +2279,7 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
   char addrel_dest[MAX_ENT_ID];
   char addrel_rel_id[MAX_REL_ID];
   char addrel_orig_dest[MAX_ENT_ID+MAX_ENT_ID];
+  char *r; // temp. tanto alla fine della funzione viene distrutto
 
   t_rel_tree_node *rel_tree;
   t_rel_node *rel_node = NULL;
@@ -2109,12 +2290,15 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
   t_rel_list *in;
 
   t_rank_node *rank = NULL;
+  t_rank_node *rank_test = NULL;
+
+  t_rank_node *deleted_rank;
 
   int hash_e_v_orig;
   int hash_e_v_dest;
   int hash_rt_v;
 
-  fgets(input, MAX_INPUT, stdin);
+  r = fgets(input, MAX_INPUT, stdin);
   retrive_addrel_delrel_args(input, addrel_orig, addrel_dest, addrel_rel_id);
   // scanf(" \"%s\" \"%s\" \"%s\"", addrel_orig, addrel_dest, addrel_rel_id);
   // sscanf(input," \"%49[^\"]\" \"%49[^\"]\" \"%49[^\"]\"", addrel_orig, addrel_dest, addrel_rel_id);
@@ -2175,15 +2359,16 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     #ifdef DEBUG_ADDREL
       printf("\tRel Tree Da creare\n");
     #endif
-    rel_tree = malloc(sizeof(t_rel_tree_node));
+    rel_tree = (t_rel_tree_node*) malloc(sizeof(t_rel_tree_node));
     // qui bisogna inizializzare rel tree e poi inserirlo se non è presente
+    rel_tree->id = (char*) calloc(strlen(addrel_rel_id) + 1, sizeof(char));
     strcpy(rel_tree->id, addrel_rel_id);
     rel_tree->color = 0;
     rel_tree->v = 1;
-    rel_tree->relations = malloc(sizeof(t_rel_head));
+    rel_tree->relations = (t_rel_head*) malloc(sizeof(t_rel_head));
     rel_tree->relations->nil = &NIL_REL;
     rel_tree->relations->root = rel_tree->relations->nil;
-    rel_tree->ranking = malloc(sizeof(t_rank_head));
+    rel_tree->ranking = (t_rank_head*) malloc(sizeof(t_rank_head));
     rel_tree->ranking->nil = &NIL_RANK;
     rel_tree->ranking->root = rel_tree->ranking->nil;
     if(REL_TREE_INSERT(hash_rt+hash_rt_v, rel_tree)){
@@ -2203,8 +2388,9 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
 
   // vuol dire che non esiste nemmeno con v = 0
   // allochiamo il rel "che deve essere perforza presente"
-  rel_node = malloc(sizeof(t_rel_node));
+  rel_node = (t_rel_node*) malloc(sizeof(t_rel_node));
 
+  rel_node->id = (char*) calloc(strlen(addrel_orig_dest) + 1, sizeof(char));
   strcpy(rel_node->id, addrel_orig_dest);
   rel_node->v = 1;
   rel_node->orig = orig;
@@ -2226,28 +2412,47 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     printf("\tDest id to rank: %s\n", dest->id);
   #endif
   // find_rank(rel_tree->ranking, rel_tree->ranking->root, &rank, dest->id); //TODO: ottimizzare?? questa è O(n)!!
+  // find_rank(rel_tree->ranking, rel_tree->ranking->root, &rank_test, dest->id); //TODO: ottimizzare?? questa è O(n)!!
   rank = find_rank_v2(rel_node->dest->in_rel, rel_tree);
-  // rank = find_rank_v2(rel_node->dest->in_rel, addrel_rel_id);
   // if(rank == NULL){
-    // rank = find_rank_v2(rel_node->orig->out_rel, addrel_rel_id);
+  //   rank = find_rank_v2(rel_node->orig->out_rel, rel_tree);
   // }
   if(rank != NULL){
+    // #ifdef TEST_1
+    //   if(rank != rank_test){
+    //       printf("found an other rank\n");
+    //       printf("v2: %s :-: v1: %s\n", rank->id, rank_test->id);
+    //   }
+    // #endif
+
     #ifdef DEBUG_ADDREL
       printf("\tRanking da aggiornare\n");
     #endif
     #ifdef DEBUG_ADDREL
       printf("\tElimino: %s\n", rank->id);
     #endif
-    RANK_DELETE(rel_tree->ranking, rank);
+
+    deleted_rank = RANK_DELETE(rel_tree->ranking, rank);
+
+    #ifdef TEST_1
+      if(deleted_rank != rank){
+        printf("deleted an other rank\n");
+      }
+    #endif
+
     #ifdef DEBUG_ADDREL
       printf("\tRank eliminato\n");
     #endif
+
     rank->n = rank->n + 1;
+
     #ifdef DEBUG_ADDREL
       printf("\tRank incrementato\n");
       printf("\tRank n: %d - Rank id: %s\n", rank->n, rank->id);
     #endif
+
     RANK_INSERT(rel_tree->ranking, rank);
+
     #ifdef DEBUG_ADDREL
       printf("\tRank reinserito\n");
     #endif
@@ -2261,7 +2466,8 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
       printf("\tRank da inserire da capo\n");
       // RANK_TREE_WALK(rel_tree->ranking, rel_tree->ranking->root);
     #endif
-    rank = malloc(sizeof(t_rank_node));
+    rank = (t_rank_node*) malloc(sizeof(t_rank_node));
+    rank->id = (char*) calloc(strlen(addrel_dest) + 1, sizeof(char));
     strcpy(rank->id, addrel_dest);
     rank->v = 1;
     rank->n = 1;
@@ -2272,23 +2478,28 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
       // RANK_TREE_WALK(rel_tree->ranking, rel_tree->ranking->root);
     #endif
   }
+
   // inseriamo il collegamento da ent al nodo rank
   rel_node->rank_h_p = rel_tree->ranking; // inseriamo la head del rank (serve per il delete)
   rel_node->rank_pointer = rank; // puntatore al nodo rank
+
   #ifdef DEBUG_ADDREL
     printf("-------Rank repo dopo insert: ---------\n");
     RANK_TREE_WALK(rel_tree->ranking, rel_tree->ranking->root);
   #endif
 
-  out = malloc(sizeof(t_rel_list));
+  out = (t_rel_list*) malloc(sizeof(t_rel_list));
   out->rel_head = rel_tree->relations;
   out->rel = rel_node;
-  in = malloc(sizeof(t_rel_list));
+  in = (t_rel_list*) malloc(sizeof(t_rel_list));
   in->rel_head = rel_tree->relations;
   in->rel = rel_node;
 
   ADD_TO_LIST(&(orig->out_rel), out);
   ADD_TO_LIST(&(dest->in_rel), in);
+
+  rel_node->orig_rel_list_pointer = out;
+  rel_node->dest_rel_list_pointer = in;
 
   return 1;
 }
@@ -2300,11 +2511,14 @@ int delrel(t_rel_tree_head *hash_rt){
   char delrel_dest[MAX_ENT_ID];
   char delrel_id[MAX_REL_ID];
   char delrel_orig_dest[MAX_ENT_ID+MAX_ENT_ID];
+  char *r;
+
   t_rel_tree_node *rel_tree;
   t_rel_node *rel;
 
   t_rel_tree_node *deleted_rel_tree;
-  // t_rel_node *deleted_rel;
+  t_rel_node *deleted_rel;
+  t_rank_node *deleted_rank;
 
   int hash_rt_v;
 
@@ -2322,7 +2536,7 @@ int delrel(t_rel_tree_head *hash_rt){
   //   printf("Presi i dati in input\n");
   // #endif
 
-  fgets(input, MAX_INPUT, stdin);
+  r = fgets(input, MAX_INPUT, stdin);
   retrive_addrel_delrel_args(input, delrel_orig, delrel_dest, delrel_id);
 
   // fgets(input, MAX_INPUT, stdin);
@@ -2347,8 +2561,16 @@ int delrel(t_rel_tree_head *hash_rt){
     return 0;
   }
 
-  REL_DELETE(rel_tree->relations, rel);
-  rel->v = 0;
+  deleted_rel = REL_DELETE(rel_tree->relations, rel);
+
+  #ifdef TEST_1
+    if(deleted_rel != rel){
+      printf("deleted an other rel\n");
+    }
+  #endif
+
+  deleted_rel->v = 0;
+
   #ifdef DEBUG_DELREL
     printf("Eliminata relazione\n");
   #endif
@@ -2361,52 +2583,73 @@ int delrel(t_rel_tree_head *hash_rt){
 
   // vuol dire che mi sono rimaste zero relazioni
   if(rel_tree->relations->root == rel_tree->relations->nil){
+    hash_rt_v = hash_value(rel_tree->id[0]);
     deleted_rel_tree = REL_TREE_DELETE(hash_rt+hash_rt_v, rel_tree);
+
+    rel_tree->v = 0;
+
+    #ifdef TEST_1
+      if(deleted_rel_tree != rel_tree){
+        printf("deleted an other rel tree 1\n");
+      }
+    #endif
+
     #ifndef DISABLE_FREE_REL_TREE
+      free(deleted_rel_tree->id);
       free(deleted_rel_tree);
-      #ifdef DEBUG_DELREL
-        printf("Eliminato Rel Tree\n");
-      #endif
-    #else
-      rel_tree->v = 0;
     #endif
   }
-  #ifdef DEBUG_DELREL
-  else{
-    printf("NON Eliminato Rel Tree\n");
-  }
-  #endif
 
 
-  rel->rank_pointer->n = rel->rank_pointer->n - 1;
-  if(rel->rank_pointer->n == 0){
+  if((rel->rank_pointer->n - 1) == 0){
     #ifdef DEBUG_DELREL
       printf("Voglio eliminare il nodo rank che è a 0\n");
     #endif
-    RANK_DELETE(rel->rank_h_p, rel->rank_pointer);
+
+    deleted_rank = RANK_DELETE(rel->rank_h_p, rel->rank_pointer);
+
+    #ifdef TEST_1
+      if(deleted_rank != rel->rank_pointer){
+        printf("deleted an other rank\n");
+      }
+    #endif
+
+    rel->rank_pointer->n = rel->rank_pointer->n - 1;
 
     #ifndef DISABLE_FREE_RANK_NODE
-    if(rel->rank_pointer->v == 1)
-      rel->rank_pointer->v = 0;
+      if(rel->rank_pointer->v == 1)
+        rel->rank_pointer->v = 0;
     #else
       rel->rank_pointer->v = 0;
     #endif
 
     #ifndef DISABLE_FREE_RANK_NODE
-      // disattivato perché le free le faccio solo nel delent
-      // free(rel->rank_pointer); // così perchè ho modificato l'algoritmo!
+      free(rel->rank_pointer->id);
+      free(rel->rank_pointer);
     #endif
   }
   else{
-    // update rank
+    // UPDATE RANK
     #ifdef DEBUG_DELREL
       printf("Voglio aggiornare il nodo rank\n");
     #endif
-    RANK_DELETE(rel->rank_h_p, rel->rank_pointer);
+
+    deleted_rank = RANK_DELETE(rel->rank_h_p, rel->rank_pointer);
+
+    #ifdef TEST_1
+      if(deleted_rank != rel->rank_pointer){
+        printf("deleted an other rank\n");
+      }
+    #endif
+
+    rel->rank_pointer->n = rel->rank_pointer->n - 1;
+
     #ifdef DEBUG_DELREL
       printf("Rank eliminato (per update)\n");
     #endif
+
     RANK_INSERT(rel->rank_h_p, rel->rank_pointer);
+
     #ifdef DEBUG_DELREL
       printf("Rank reinserito (per update)\n");
     #endif
@@ -2421,46 +2664,24 @@ int delrel(t_rel_tree_head *hash_rt){
     RANK_TREE_WALK(rel->rank_h_p, rel->rank_h_p->root);
   #endif
 
+  // sistemo le liste.
+  // per evitare conflitti
+  REMOVE_FROM_LIST(&(deleted_rel->orig->out_rel), deleted_rel->orig_rel_list_pointer);
+  REMOVE_FROM_LIST(&(deleted_rel->dest->in_rel), deleted_rel->dest_rel_list_pointer);
+
+  #ifndef DISABLE_FREE_REL_LIST_DELREL
+    free(deleted_rel->orig_rel_list_pointer);
+    free(deleted_rel->dest_rel_list_pointer);
+  #endif
+
+  #ifndef DISABLE_FREE_REL_NODE_DELREL
+    free(deleted_rel->id);
+    free(deleted_rel);
+  #endif
+
   return 1;
 }
 
-// // FUNZIONE SECONDARIA COMANDO "report"
-// int RANK_TREE_WALK(t_rank_head *T, t_rank_node *x){
-//   // printf("a\n");
-//   if(x != T->nil){
-//     RANK_TREE_WALK(T, x->right);
-//     if(x->left != T->nil && x->n > T->nil){
-//       return 1
-//     }
-//     else{
-//       printf("%s\n", );
-//     }
-//   }
-// }
-
-
-// ####################
-// ##### OLD ##########
-// ####################
-// TO IMPROVE!!!!
-// TODO: funzione da ottimizzare, in quando scandisce tutto l'albero!
-// (magari solo per 1 relazione!)
-// void REPORT_RANK_TREE_WALK(t_rank_head *T, t_rank_node *x, int n){
-//   // printf("aa\n");
-//   if(x != T->nil){
-//     REPORT_RANK_TREE_WALK(T, x->left, n);
-//     if(x->n == n){
-//       fputs("\"", stdout);
-//       fputs(x->id, stdout);
-//       fputs("\" ", stdout);
-//       // printf("\"%s\" ", x->id);
-//     }
-//     REPORT_RANK_TREE_WALK(T, x->right, n);
-//   }
-// }
-// ####################
-// ##### OLD ##########
-// ####################
 
 // void REPORT_RANK_TREE_WALK(t_rank_head *T, t_rank_node *x, int n, t_rank_node *max){
 void REPORT_RANK_TREE_WALK(t_rank_head *T, t_rank_node *x, int n){
@@ -2500,7 +2721,7 @@ char *i_to_a(int num)
     }
 
     digit_count += no_of_digits(num);
-    str = malloc(sizeof(char)*(digit_count+1));
+    str = (char*) malloc(sizeof(char)*(digit_count+1));
 
     str[digit_count] = '\0';
 
@@ -2538,6 +2759,7 @@ int REPORT_RANK(t_rank_head *T, t_rank_node *x){
   while (x->right != T->nil) {
     x = x->right;
   }
+
   n = x->n;
 
   #ifdef DEBUG_REPORT
@@ -2581,8 +2803,8 @@ void REPORT_WALK_REL_TREE(t_rel_tree_head *T, t_rel_tree_node *x, t_rel_tree_nod
     // faccio la report solo se ranking non è vuoto
     if(x->ranking->root != x->ranking->nil){
       vuoto = 0;
-      printed_1 = 1;
-      printed_2 = 1;
+      // printed_1 = 1;
+      // printed_2 = 1;
       fputs("\"", stdout);
       fputs(x->id, stdout);
       fputs("\" ", stdout);
@@ -2604,7 +2826,7 @@ void REPORT_WALK_REL_TREE(t_rel_tree_head *T, t_rel_tree_node *x, t_rel_tree_nod
 // FUNZIONE PRIMARIA BIS DEL COMANDO "report"
 int report2(t_rel_tree_head *T){
   t_rel_tree_node *x = T->root;
-  t_rel_tree_node *y;
+  // t_rel_tree_node *y;
 
   // vado all'ultima relazione
   // questo serve per mettere ; senza spazio alla fine
@@ -2612,7 +2834,7 @@ int report2(t_rel_tree_head *T){
   //   x = x->right;
   // }
 
-  printed_2 = 0;
+  // printed_2 = 0;
 
   REPORT_WALK_REL_TREE(T, T->root, x);
 
@@ -2637,21 +2859,29 @@ int report(t_rel_tree_head *hash){
   int i = 0;
   int res = 0;
 
+  char *r;
+
   // #######################
   // serve per fixare un bug
+  // praticamente probabilemnte c'è uno \n o cose così alla fine che bisona leggere.
+  //    perchè il gets del main non lo legge
   char input[MAX_INPUT];
-  fgets(input, MAX_INPUT, stdin);
+  r = fgets(input, MAX_INPUT, stdin);
   // serve per fixare un bug
   // #######################
+
+  #ifdef DISABLE_REPORT
+    return 1;
+  #endif
 
   vuoto = 1; // variabile globale
-  printed_1 = 0; // variabile globale
+  // printed_1 = 0; // variabile globale
 
   // scandisco la hash table
-  do{
+  while(i < HASH_SIZE){
     // entro se nella posizione c'è almeno un elemento
     if((hash+i)->root != (hash+i)->nil){
-      printed_1 = 0; // variabile globale
+      // printed_1 = 0; // variabile globale
       // if(vuoto != 1)
       //   printf(" ");
 
@@ -2662,7 +2892,7 @@ int report(t_rel_tree_head *hash){
 
     }
     i++;
-  } while(i < HASH_SIZE);
+  }
 
   // vuoto rimane 0 se non ho trovato niente da stampare
   if(vuoto == 1){
@@ -2679,11 +2909,12 @@ int report(t_rel_tree_head *hash){
 
 
 int main(){
-  char comando[MAX_INPUT]; // 6 + 1 (\0)
+  char comando[MAX_COMANDO]; // 6 + 1 (\0)
   int cmd;
   int i = 0;
   int size_cmd;
   size_t len = 0;
+  char *r;
 
   // array delle entità
   t_ent_head* T_ent = init_hash_ent();
@@ -2717,7 +2948,7 @@ int main(){
   // if(comando[i] == '\n')
       // comando[i] = '\0';
   // fgets(comando, 7, stdin);
-  fgets(comando, 7, stdin);
+  r = fgets(comando, 7, stdin);
   // scanf("%s", comando);
   cmd = getcmd(comando);
 
@@ -2761,10 +2992,13 @@ int main(){
     // i = strlen(comando)-1;
     // if(comando[i] == '\n')
     //     comando[i] = '\0';
-    fgets(comando, 7, stdin);
+    r = fgets(comando, 7, stdin);
     // scanf("%s", comando);
     cmd = getcmd(comando);
   }
+
+  free(T_ent);
+  free(T_rel_tree);
 
   #ifdef DEBUG_STATS
     end = clock();
