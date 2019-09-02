@@ -54,6 +54,10 @@
 
 // #define DISABLE_REPORT 0
 
+// #define INSERT_SLIDE 0
+// #define DELETE_SLIDE 0
+
+
 typedef struct ent_head t_ent_head;
 typedef struct ent_node t_ent_node;
 typedef struct rel_tree_head t_rel_tree_head;
@@ -477,6 +481,52 @@ t_ent_node *ENT_TREE_SUCCESSOR(t_ent_head *T, t_ent_node *x){
   return y;
 }
 
+#ifndef INSERT_SLIDE
+void ENT_INSERT_FIXUP(t_ent_head *T, t_ent_node *z){
+  t_ent_node *y;
+  while (z->p->color == 1) {
+    if(z->p == z->p->p->left){
+      y = z->p->p->right;
+      if(y->color == 1){
+        z->p->color = 0;
+        y->color = 0;
+        z->p->p->color = 1;
+        z = z->p->p;
+      }
+      else{
+        if(z == z->p->right){
+          z = z->p;
+          ENT_LEFT_ROTATE(T, z);
+        }
+        z->p->color = 0;
+        z->p->p->color = 1;
+        ENT_RIGHT_ROTATE(T, z->p->p);
+      }
+    }
+    else{
+      y = z->p->p->left;
+      if(y->color == 1){
+        z->p->color = 0;
+        y->color = 0;
+        z->p->p->color = 1;
+        z = z->p->p;
+      }
+      else{
+        if(z == z->p->left){
+          z = z->p;
+          ENT_RIGHT_ROTATE(T, z);
+        }
+        z->p->color = 0;
+        z->p->p->color = 1;
+        ENT_LEFT_ROTATE(T, z->p->p);
+      }
+    }
+  }
+  T->root->color = 0;
+}
+#endif
+
+#ifdef INSERT_SLIDE
 void ENT_INSERT_FIXUP(t_ent_head *T, t_ent_node *z){
   t_ent_node *x;
   t_ent_node *y;
@@ -531,6 +581,7 @@ void ENT_INSERT_FIXUP(t_ent_head *T, t_ent_node *z){
   }
   // return 1;
 }
+#endif
 
 int ENT_INSERT(t_ent_head *T, t_ent_node *z){
   t_ent_node *y = T->nil;
@@ -561,6 +612,115 @@ int ENT_INSERT(t_ent_head *T, t_ent_node *z){
   return 1;
 }
 
+#ifndef DELETE_SLIDE
+void ENT_TRANSPLANT(t_ent_head *T, t_ent_node *u, t_ent_node *v){
+  if(u->p == T->nil)
+    T->root = v;
+  else if(u == u->p->left)
+    u->p->left = v;
+  else
+    u->p->right = v;
+  v->p = u->p;
+}
+
+void ENT_DELETE_FIXUP(t_ent_head *T, t_ent_node *x){
+  t_ent_node *w;
+  while (x != T->root && x->color == 0) {
+    if(x == x->p->left){
+      w = x->p->right;
+      if(w->color == 1){
+        w->color = 0;
+        x->p->color = 1;
+        ENT_LEFT_ROTATE(T, x->p);
+        w = x->p->right;
+      }
+      if(w->left->color == 0 && w->right->color == 0){
+        w->color = 1;
+        x = x->p;
+      }
+      else{
+        if(w->right->color == 0){
+          w->left->color = 0;
+          w->color = 1;
+          ENT_RIGHT_ROTATE(T, w);
+          w = x->p->right;
+        }
+        w->color = x->p->color;
+        x->p->color = 0;
+        w->right->color = 0;
+        ENT_LEFT_ROTATE(T, x->p);
+        x = T->root;
+      }
+    }
+    else{
+      w = x->p->left;
+      if(w->color == 1){
+        w->color = 0;
+        x->p->color = 1;
+        ENT_RIGHT_ROTATE(T, x->p);
+        w = x->p->left;
+      }
+      if(w->right->color == 0 && w->left->color == 0){
+        w->color = 1;
+        x = x->p;
+      }
+      else{
+        if(w->left->color == 0){
+          w->right->color = 0;
+          w->color = 1;
+          ENT_LEFT_ROTATE(T, w);
+          w = x->p->left;
+        }
+        w->color = x->p->color;
+        x->p->color = 0;
+        w->left->color = 0;
+        ENT_RIGHT_ROTATE(T, x->p);
+        x = T->root;
+      }
+    }
+  }
+  x->color = 0;
+}
+
+t_ent_node *ENT_DELETE(t_ent_head *T, t_ent_node *z){
+  t_ent_node *y = z;
+  t_ent_node *x;
+  int y_original_color = y->color;
+
+  if(z->left == T->nil){
+    x = z->right;
+    ENT_TRANSPLANT(T, z, z->right);
+  }
+  else if(z->right == T->nil){
+    x = z->left;
+    ENT_TRANSPLANT(T, z, z->left);
+  }
+  else{
+    y = ENT_TREE_MINIMUM(T, z->right);
+    y_original_color = y->color;
+    x = y->right;
+    if(y->p == z)
+      x->p = y;
+    else{
+      ENT_TRANSPLANT(T, y, y->right);
+      y->right = z->right;
+      y->right->p = y;
+    }
+    ENT_TRANSPLANT(T, z, y);
+
+    y->left = z->left;
+
+    y->left->p = y;
+    y->color = z->color;
+  }
+  if(y_original_color == 0)
+    ENT_DELETE_FIXUP(T, x);
+
+  return z;
+}
+#endif
+
+#ifdef DELETE_SLIDE
 void ENT_DELETE_FIXUP(t_ent_head *T, t_ent_node *x){
   t_ent_node *w;
   if(x->color == 1 || x->p == T->nil)
@@ -743,6 +903,7 @@ t_ent_node *ENT_DELETE(t_ent_head *T, t_ent_node *z){
     ENT_DELETE_FIXUP(T, x);
   return y; //return the deleted node
 }
+#endif
 // ###############################
 // ##### ENT OPERATIONS ##########
 // #####       END      ##########
@@ -813,6 +974,52 @@ t_rel_node *REL_TREE_SUCCESSOR(t_rel_head *T, t_rel_node *x){
   return y;
 }
 
+#ifndef INSERT_SLIDE
+void REL_INSERT_FIXUP(t_rel_head *T, t_rel_node *z){
+  t_rel_node *y;
+  while (z->p->color == 1) {
+    if(z->p == z->p->p->left){
+      y = z->p->p->right;
+      if(y->color == 1){
+        z->p->color = 0;
+        y->color = 0;
+        z->p->p->color = 1;
+        z = z->p->p;
+      }
+      else{
+        if(z == z->p->right){
+          z = z->p;
+          REL_LEFT_ROTATE(T, z);
+        }
+        z->p->color = 0;
+        z->p->p->color = 1;
+        REL_RIGHT_ROTATE(T, z->p->p);
+      }
+    }
+    else{
+      y = z->p->p->left;
+      if(y->color == 1){
+        z->p->color = 0;
+        y->color = 0;
+        z->p->p->color = 1;
+        z = z->p->p;
+      }
+      else{
+        if(z == z->p->left){
+          z = z->p;
+          REL_RIGHT_ROTATE(T, z);
+        }
+        z->p->color = 0;
+        z->p->p->color = 1;
+        REL_LEFT_ROTATE(T, z->p->p);
+      }
+    }
+  }
+  T->root->color = 0;
+}
+#endif
+
+#ifdef INSERT_SLIDE
 void REL_INSERT_FIXUP(t_rel_head *T, t_rel_node *z){
   t_rel_node *x;
   t_rel_node *y;
@@ -867,6 +1074,7 @@ void REL_INSERT_FIXUP(t_rel_head *T, t_rel_node *z){
   }
   // return 1;
 }
+#endif
 
 int REL_INSERT(t_rel_head *T, t_rel_node *z){
   t_rel_node *y = T->nil;
@@ -892,6 +1100,115 @@ int REL_INSERT(t_rel_head *T, t_rel_node *z){
   return 1;
 }
 
+#ifndef DELETE_SLIDE
+void REL_TRANSPLANT(t_rel_head *T, t_rel_node *u, t_rel_node *v){
+  if(u->p == T->nil)
+    T->root = v;
+  else if(u == u->p->left)
+    u->p->left = v;
+  else
+    u->p->right = v;
+  v->p = u->p;
+}
+
+void REL_DELETE_FIXUP(t_rel_head *T, t_rel_node *x){
+  t_rel_node *w;
+  while (x != T->root && x->color == 0) {
+    if(x == x->p->left){
+      w = x->p->right;
+      if(w->color == 1){
+        w->color = 0;
+        x->p->color = 1;
+        REL_LEFT_ROTATE(T, x->p);
+        w = x->p->right;
+      }
+      if(w->left->color == 0 && w->right->color == 0){
+        w->color = 1;
+        x = x->p;
+      }
+      else{
+        if(w->right->color == 0){
+          w->left->color = 0;
+          w->color = 1;
+          REL_RIGHT_ROTATE(T, w);
+          w = x->p->right;
+        }
+        w->color = x->p->color;
+        x->p->color = 0;
+        w->right->color = 0;
+        REL_LEFT_ROTATE(T, x->p);
+        x = T->root;
+      }
+    }
+    else{
+      w = x->p->left;
+      if(w->color == 1){
+        w->color = 0;
+        x->p->color = 1;
+        REL_RIGHT_ROTATE(T, x->p);
+        w = x->p->left;
+      }
+      if(w->right->color == 0 && w->left->color == 0){
+        w->color = 1;
+        x = x->p;
+      }
+      else{
+        if(w->left->color == 0){
+          w->right->color = 0;
+          w->color = 1;
+          REL_LEFT_ROTATE(T, w);
+          w = x->p->left;
+        }
+        w->color = x->p->color;
+        x->p->color = 0;
+        w->left->color = 0;
+        REL_RIGHT_ROTATE(T, x->p);
+        x = T->root;
+      }
+    }
+  }
+  x->color = 0;
+}
+
+t_rel_node *REL_DELETE(t_rel_head *T, t_rel_node *z){
+  t_rel_node *y = z;
+  t_rel_node *x;
+  int y_original_color = y->color;
+
+  if(z->left == T->nil){
+    x = z->right;
+    REL_TRANSPLANT(T, z, z->right);
+  }
+  else if(z->right == T->nil){
+    x = z->left;
+    REL_TRANSPLANT(T, z, z->left);
+  }
+  else{
+    y = REL_TREE_MINIMUM(T, z->right);
+    y_original_color = y->color;
+    x = y->right;
+    if(y->p == z)
+      x->p = y;
+    else{
+      REL_TRANSPLANT(T, y, y->right);
+      y->right = z->right;
+      y->right->p = y;
+    }
+    REL_TRANSPLANT(T, z, y);
+
+    y->left = z->left;
+
+    y->left->p = y;
+    y->color = z->color;
+  }
+  if(y_original_color == 0)
+    REL_DELETE_FIXUP(T, x);
+
+  return z;
+}
+#endif
+
+#ifdef DELETE_SLIDE
 void REL_DELETE_FIXUP(t_rel_head *T, t_rel_node *x){
   t_rel_node *w;
   if(x->color == 1 || x->p == T->nil)
@@ -1080,7 +1397,7 @@ t_rel_node *REL_DELETE(t_rel_head *T, t_rel_node *z){
   // printf("aaaa10\n");
   return y; //return the deleted node
 }
-
+#endif
 // ###############################
 // ##### REL OPERATIONS ##########
 // #####       END      ##########
@@ -1170,6 +1487,52 @@ t_rel_tree_node *REL_TREE_TREE_PREDECESSOR(t_rel_tree_head *T, t_rel_tree_node *
   return y;
 }
 
+#ifndef INSERT_SLIDE
+void REL_TREE_INSERT_FIXUP(t_rel_tree_head *T, t_rel_tree_node *z){
+  t_rel_tree_node *y;
+  while (z->p->color == 1) {
+    if(z->p == z->p->p->left){
+      y = z->p->p->right;
+      if(y->color == 1){
+        z->p->color = 0;
+        y->color = 0;
+        z->p->p->color = 1;
+        z = z->p->p;
+      }
+      else{
+        if(z == z->p->right){
+          z = z->p;
+          REL_TREE_LEFT_ROTATE(T, z);
+        }
+        z->p->color = 0;
+        z->p->p->color = 1;
+        REL_TREE_RIGHT_ROTATE(T, z->p->p);
+      }
+    }
+    else{
+      y = z->p->p->left;
+      if(y->color == 1){
+        z->p->color = 0;
+        y->color = 0;
+        z->p->p->color = 1;
+        z = z->p->p;
+      }
+      else{
+        if(z == z->p->left){
+          z = z->p;
+          REL_TREE_RIGHT_ROTATE(T, z);
+        }
+        z->p->color = 0;
+        z->p->p->color = 1;
+        REL_TREE_LEFT_ROTATE(T, z->p->p);
+      }
+    }
+  }
+  T->root->color = 0;
+}
+#endif
+
+#ifdef INSERT_SLIDE
 void REL_TREE_INSERT_FIXUP(t_rel_tree_head *T, t_rel_tree_node *z){
   t_rel_tree_node *x;
   t_rel_tree_node *y;
@@ -1224,6 +1587,7 @@ void REL_TREE_INSERT_FIXUP(t_rel_tree_head *T, t_rel_tree_node *z){
   }
   // return 1;
 }
+#endif
 
 int REL_TREE_INSERT(t_rel_tree_head *T, t_rel_tree_node *z){
   t_rel_tree_node *y = T->nil;
@@ -1249,6 +1613,115 @@ int REL_TREE_INSERT(t_rel_tree_head *T, t_rel_tree_node *z){
   return 1;
 }
 
+#ifndef DELETE_SLIDE
+void REL_TREE_TRANSPLANT(t_rel_tree_head *T, t_rel_tree_node *u, t_rel_tree_node *v){
+  if(u->p == T->nil)
+    T->root = v;
+  else if(u == u->p->left)
+    u->p->left = v;
+  else
+    u->p->right = v;
+  v->p = u->p;
+}
+
+void REL_TREE_DELETE_FIXUP(t_rel_tree_head *T, t_rel_tree_node *x){
+  t_rel_tree_node *w;
+  while (x != T->root && x->color == 0) {
+    if(x == x->p->left){
+      w = x->p->right;
+      if(w->color == 1){
+        w->color = 0;
+        x->p->color = 1;
+        REL_TREE_LEFT_ROTATE(T, x->p);
+        w = x->p->right;
+      }
+      if(w->left->color == 0 && w->right->color == 0){
+        w->color = 1;
+        x = x->p;
+      }
+      else{
+        if(w->right->color == 0){
+          w->left->color = 0;
+          w->color = 1;
+          REL_TREE_RIGHT_ROTATE(T, w);
+          w = x->p->right;
+        }
+        w->color = x->p->color;
+        x->p->color = 0;
+        w->right->color = 0;
+        REL_TREE_LEFT_ROTATE(T, x->p);
+        x = T->root;
+      }
+    }
+    else{
+      w = x->p->left;
+      if(w->color == 1){
+        w->color = 0;
+        x->p->color = 1;
+        REL_TREE_RIGHT_ROTATE(T, x->p);
+        w = x->p->left;
+      }
+      if(w->right->color == 0 && w->left->color == 0){
+        w->color = 1;
+        x = x->p;
+      }
+      else{
+        if(w->left->color == 0){
+          w->right->color = 0;
+          w->color = 1;
+          REL_TREE_LEFT_ROTATE(T, w);
+          w = x->p->left;
+        }
+        w->color = x->p->color;
+        x->p->color = 0;
+        w->left->color = 0;
+        REL_TREE_RIGHT_ROTATE(T, x->p);
+        x = T->root;
+      }
+    }
+  }
+  x->color = 0;
+}
+
+t_rel_tree_node *REL_TREE_DELETE(t_rel_tree_head *T, t_rel_tree_node *z){
+  t_rel_tree_node *y = z;
+  t_rel_tree_node *x;
+  int y_original_color = y->color;
+
+  if(z->left == T->nil){
+    x = z->right;
+    REL_TREE_TRANSPLANT(T, z, z->right);
+  }
+  else if(z->right == T->nil){
+    x = z->left;
+    REL_TREE_TRANSPLANT(T, z, z->left);
+  }
+  else{
+    y = REL_TREE_TREE_MINIMUM(T, z->right);
+    y_original_color = y->color;
+    x = y->right;
+    if(y->p == z)
+      x->p = y;
+    else{
+      REL_TREE_TRANSPLANT(T, y, y->right);
+      y->right = z->right;
+      y->right->p = y;
+    }
+    REL_TREE_TRANSPLANT(T, z, y);
+
+    y->left = z->left;
+
+    y->left->p = y;
+    y->color = z->color;
+  }
+  if(y_original_color == 0)
+    REL_TREE_DELETE_FIXUP(T, x);
+
+  return z;
+}
+#endif
+
+#ifdef DELETE_SLIDE
 void REL_TREE_DELETE_FIXUP(t_rel_tree_head *T, t_rel_tree_node *x){
   t_rel_tree_node *w;
   if(x->color == 1 || x->p == T->nil)
@@ -1425,7 +1898,7 @@ t_rel_tree_node *REL_TREE_DELETE(t_rel_tree_head *T, t_rel_tree_node *z){
     REL_TREE_DELETE_FIXUP(T, x);
   return y; //return the deleted node
 }
-
+#endif
 // ####################################
 // ##### REL TREE OPERATIONS ##########
 // #####          END        ##########
@@ -1436,7 +1909,7 @@ t_rel_tree_node *REL_TREE_DELETE(t_rel_tree_head *T, t_rel_tree_node *z){
 // ###### RANKING OPERATIONS ##########
 // ######       START        ##########
 // ####################################
-int RANK_LEFT_ROTATE(t_rank_head *T, t_rank_node *x){
+void RANK_LEFT_ROTATE(t_rank_head *T, t_rank_node *x){
   t_rank_node *y = x->right;
   x->right = y->left;
   if(y->left != T->nil)
@@ -1450,11 +1923,9 @@ int RANK_LEFT_ROTATE(t_rank_head *T, t_rank_node *x){
     x->p->right = y;
   y->left = x;
   x->p = y;
-
-  return 1;
 }
 
-int RANK_RIGHT_ROTATE(t_rank_head *T, t_rank_node *x){
+void RANK_RIGHT_ROTATE(t_rank_head *T, t_rank_node *x){
   t_rank_node *y = x->left;
   x->left = y->right;
   if(y->right != T->nil)
@@ -1468,8 +1939,6 @@ int RANK_RIGHT_ROTATE(t_rank_head *T, t_rank_node *x){
     x->p->left = y;
   y->right = x;
   x->p = y;
-
-  return 1;
 }
 
 void RANK_TREE_WALK(t_rank_head *T, t_rank_node *x){
@@ -1525,6 +1994,52 @@ t_rank_node *RANK_TREE_PREDECESSOR(t_rank_head *T, t_rank_node *x){
   return y;
 }
 
+#ifndef INSERT_SLIDE
+void RANK_INSERT_FIXUP(t_rank_head *T, t_rank_node *z){
+  t_rank_node *y;
+  while (z->p->color == 1) {
+    if(z->p == z->p->p->left){
+      y = z->p->p->right;
+      if(y->color == 1){
+        z->p->color = 0;
+        y->color = 0;
+        z->p->p->color = 1;
+        z = z->p->p;
+      }
+      else{
+        if(z == z->p->right){
+          z = z->p;
+          RANK_LEFT_ROTATE(T, z);
+        }
+        z->p->color = 0;
+        z->p->p->color = 1;
+        RANK_RIGHT_ROTATE(T, z->p->p);
+      }
+    }
+    else{
+      y = z->p->p->left;
+      if(y->color == 1){
+        z->p->color = 0;
+        y->color = 0;
+        z->p->p->color = 1;
+        z = z->p->p;
+      }
+      else{
+        if(z == z->p->left){
+          z = z->p;
+          RANK_RIGHT_ROTATE(T, z);
+        }
+        z->p->color = 0;
+        z->p->p->color = 1;
+        RANK_LEFT_ROTATE(T, z->p->p);
+      }
+    }
+  }
+  T->root->color = 0;
+}
+#endif
+
+#ifdef INSERT_SLIDE
 int RANK_INSERT_FIXUP(t_rank_head *T, t_rank_node *z){
   t_rank_node *x;
   t_rank_node *y;
@@ -1579,6 +2094,7 @@ int RANK_INSERT_FIXUP(t_rank_head *T, t_rank_node *z){
   }
   return 1;
 }
+#endif
 
 int RANK_INSERT(t_rank_head *T, t_rank_node *z){
   t_rank_node *y = T->nil;
@@ -1604,6 +2120,115 @@ int RANK_INSERT(t_rank_head *T, t_rank_node *z){
   return 1;
 }
 
+#ifndef DELETE_SLIDE
+void RANK_TRANSPLANT(t_rank_head *T, t_rank_node *u, t_rank_node *v){
+  if(u->p == T->nil)
+    T->root = v;
+  else if(u == u->p->left)
+    u->p->left = v;
+  else
+    u->p->right = v;
+  v->p = u->p;
+}
+
+void RANK_DELETE_FIXUP(t_rank_head *T, t_rank_node *x){
+  t_rank_node *w;
+  while (x != T->root && x->color == 0) {
+    if(x == x->p->left){
+      w = x->p->right;
+      if(w->color == 1){
+        w->color = 0;
+        x->p->color = 1;
+        RANK_LEFT_ROTATE(T, x->p);
+        w = x->p->right;
+      }
+      if(w->left->color == 0 && w->right->color == 0){
+        w->color = 1;
+        x = x->p;
+      }
+      else{
+        if(w->right->color == 0){
+          w->left->color = 0;
+          w->color = 1;
+          RANK_RIGHT_ROTATE(T, w);
+          w = x->p->right;
+        }
+        w->color = x->p->color;
+        x->p->color = 0;
+        w->right->color = 0;
+        RANK_LEFT_ROTATE(T, x->p);
+        x = T->root;
+      }
+    }
+    else{
+      w = x->p->left;
+      if(w->color == 1){
+        w->color = 0;
+        x->p->color = 1;
+        RANK_RIGHT_ROTATE(T, x->p);
+        w = x->p->left;
+      }
+      if(w->right->color == 0 && w->left->color == 0){
+        w->color = 1;
+        x = x->p;
+      }
+      else{
+        if(w->left->color == 0){
+          w->right->color = 0;
+          w->color = 1;
+          RANK_LEFT_ROTATE(T, w);
+          w = x->p->left;
+        }
+        w->color = x->p->color;
+        x->p->color = 0;
+        w->left->color = 0;
+        RANK_RIGHT_ROTATE(T, x->p);
+        x = T->root;
+      }
+    }
+  }
+  x->color = 0;
+}
+
+t_rank_node *RANK_DELETE(t_rank_head *T, t_rank_node *z){
+  t_rank_node *y = z;
+  t_rank_node *x;
+  int y_original_color = y->color;
+
+  if(z->left == T->nil){
+    x = z->right;
+    RANK_TRANSPLANT(T, z, z->right);
+  }
+  else if(z->right == T->nil){
+    x = z->left;
+    RANK_TRANSPLANT(T, z, z->left);
+  }
+  else{
+    y = RANK_TREE_MINIMUM(T, z->right);
+    y_original_color = y->color;
+    x = y->right;
+    if(y->p == z)
+      x->p = y;
+    else{
+      RANK_TRANSPLANT(T, y, y->right);
+      y->right = z->right;
+      y->right->p = y;
+    }
+    RANK_TRANSPLANT(T, z, y);
+
+    y->left = z->left;
+
+    y->left->p = y;
+    y->color = z->color;
+  }
+  if(y_original_color == 0)
+    RANK_DELETE_FIXUP(T, x);
+
+  return z;
+}
+#endif
+
+#ifdef DELETE_SLIDE
 int RANK_DELETE_FIXUP(t_rank_head *T, t_rank_node *x){
   t_rank_node *w;
   if(x->color == 1 || x->p == T->nil)
@@ -1668,12 +2293,8 @@ t_rank_node *RANK_DELETE(t_rank_head *T, t_rank_node *z){
   t_rank_node *x;
   t_rank_node *y;
 
-  if(z->left == T->nil || z->right == T->nil){
+  if(z->left == T->nil || z->right == T->nil)
     y = z;
-    #ifdef DEBUG_3
-      printf("dir\n");
-    #endif
-  }
   else
     y = RANK_TREE_SUCCESSOR(T, z);
 
@@ -1790,7 +2411,7 @@ t_rank_node *RANK_DELETE(t_rank_head *T, t_rank_node *z){
 
   return y; //return the deleted node
 }
-
+#endif
 // ################################
 // ##### RANK OPERATIONS ##########
 // #####      END        ##########
@@ -1951,7 +2572,8 @@ t_rank_node *find_rank_v2(t_rel_list *x, t_rel_tree_node *rel_tree){
   while (x != NULL) {
     // if(x->rel->v == 1 && x->rel->rank_pointer->v == 1 && strcmp(id_rel, x->rel->rank_pointer->rel_tree_pointer->id) == 0)
     // if(x->rel->v == 1 && x->rel->rank_pointer->v == 1 && rel_tree == x->rel->rank_pointer->rel_tree_pointer)
-    if(x->rel->v == 1 && x->rel->rank_pointer->v == 1 && x->rel->rank_pointer->rel_tree_pointer->v == 1 && rel_tree == x->rel->rank_pointer->rel_tree_pointer)
+    // if(x->rel->v == 1 && x->rel->rank_pointer->v == 1 && x->rel->rank_pointer->rel_tree_pointer->v == 1 && rel_tree == x->rel->rank_pointer->rel_tree_pointer)
+    if(rel_tree == x->rel->rank_pointer->rel_tree_pointer)
       break;
     x = x->next;
   }
@@ -2654,6 +3276,7 @@ int delrel(t_rel_tree_head *hash_rt){
       printf("Rank reinserito (per update)\n");
     #endif
   }
+
   #ifdef DEBUG_DELREL
     printf("\t\tRank walk after delrel: ");
     RANK_TREE_WALK(rel->rank_h_p, rel->rank_h_p->root);
@@ -2801,7 +3424,7 @@ void REPORT_WALK_REL_TREE(t_rel_tree_head *T, t_rel_tree_node *x, t_rel_tree_nod
     REPORT_WALK_REL_TREE(T, x->left, max);
 
     // faccio la report solo se ranking non è vuoto
-    if(x->ranking->root != x->ranking->nil){
+    if(x->ranking->root != x->ranking->nil && x->relations->root != x->relations->nil){
       vuoto = 0;
       // printed_1 = 1;
       // printed_2 = 1;
