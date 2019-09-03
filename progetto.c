@@ -3,15 +3,14 @@
 #include <string.h>
 
 #define MAX_COMANDO 20
-#define MAX_INPUT 3000
-#define MAX_ENT_ID 1000
-#define MAX_REL_ID 1000
+#define MAX_INPUT 200
+#define MAX_ENT_ID 100
+#define MAX_REL_ID 100
 
-#define HASH_SIZE 64 // 4096
+// #define HASH_SIZE 64 // 4096
+#define HASH_SIZE 1 // 4096
 
 // DEBUG_DEFINE
-
-// #define DEBUG_STATS 1
 
 // #define DEBUG 1
 // #define DEBUG_2 1
@@ -54,8 +53,8 @@
 
 // #define DISABLE_REPORT 0
 
-// #define INSERT_SLIDE 0
-// #define DELETE_SLIDE 0
+#define INSERT_SLIDE 0
+#define DELETE_SLIDE 0
 
 
 typedef struct ent_head t_ent_head;
@@ -190,12 +189,12 @@ typedef struct ent_ranking_node{
 // START Global Vars
 t_ent_node NIL_ENT = {.id = "NIL_END", .color = 0, .v = 1, .in_rel = NULL, .out_rel = NULL, .p = NULL, .left = NULL, .right = NULL};
 t_rel_tree_node NIL_REL_TREE = {.id = "NIL_REL_TREE", .color = 0, .v = 1, .ranking = NULL, .relations = NULL, .p = NULL, .left = NULL, .right = NULL};
-t_rel_node NIL_REL = {.id = "NIL_REL", .v = 1, .color = 0, .orig = NULL, .dest = NULL, .p = NULL, .left = NULL, .right = NULL};
+t_rel_node NIL_REL = {.id = "NIL_REL", .color = 0, .v = 1, .orig = NULL, .dest = NULL, .p = NULL, .left = NULL, .right = NULL};
 t_rank_node NIL_RANK = {.n = 0, .id = "NIL_RANK", .color = 0, .v = 1, .p = NULL, .left = NULL, .right = NULL};
 
 int vuoto = 1;
 int printed_1 = 0;
-int printed_2 = 0;
+// int printed_2 = 0;
 
 // END Global Vars
 
@@ -237,27 +236,31 @@ int printed_2 = 0;
 //     return base+hash_value_single(a);
 // }
 
+// int hash_value(char a){
+//   #ifdef DEBUG_HASH_2
+//     printf("hash di: %c: ", a);
+//   #endif
+//
+//   if(a >= 97)
+//     a = a - 59;
+//   else if(a >= 95)
+//     a = a - 58;
+//   else if(a >= 65)
+//     a = a - 54;
+//   else if(a >= 48)
+//     a = a - 47;
+//   else
+//     a = a - 45;
+//
+//   #ifdef DEBUG_HASH_2
+//     printf("%d\n", a);
+//   #endif
+//
+//   return a;
+// }
+
 int hash_value(char a){
-  #ifdef DEBUG_HASH_2
-    printf("hash di: %c: ", a);
-  #endif
-
-  if(a >= 97)
-    a = a - 59;
-  else if(a >= 95)
-    a = a - 58;
-  else if(a >= 65)
-    a = a - 54;
-  else if(a >= 48)
-    a = a - 47;
-  else
-    a = a - 45;
-
-  #ifdef DEBUG_HASH_2
-    printf("%d\n", a);
-  #endif
-
-  return a;
+  return 0;
 }
 
 t_ent_head *init_hash_ent(){
@@ -2555,7 +2558,7 @@ int find_rel_tree_hash(t_rel_tree_head *hash_rt, t_rel_tree_node **z, char *id, 
 }
 
 
-void find_rank(t_rank_head *T, t_rank_node *x, t_rank_node **z, char *id){
+void find_rank(t_rank_head *T, t_rank_node *x, t_rank_node **z, char *id){ // NON USATO
   if(x != T->nil){
     find_rank(T, x->left, z, id);
     if(strcmp(id, x->id) == 0){
@@ -2902,6 +2905,7 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
   char addrel_rel_id[MAX_REL_ID];
   char addrel_orig_dest[MAX_ENT_ID+MAX_ENT_ID];
   char *r; // temp. tanto alla fine della funzione viene distrutto
+  char l[1] = "_";
 
   t_rel_tree_node *rel_tree;
   t_rel_node *rel_node = NULL;
@@ -2926,6 +2930,7 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
   // sscanf(input," \"%49[^\"]\" \"%49[^\"]\" \"%49[^\"]\"", addrel_orig, addrel_dest, addrel_rel_id);
 
   strcpy(addrel_orig_dest, addrel_orig);
+  strcat(addrel_orig_dest, l);
   strcat(addrel_orig_dest, addrel_dest);
 
   // printf("%s - %s - %s\n", addrel_orig, addrel_dest, addrel_rel_id);
@@ -3134,6 +3139,7 @@ int delrel(t_rel_tree_head *hash_rt){
   char delrel_id[MAX_REL_ID];
   char delrel_orig_dest[MAX_ENT_ID+MAX_ENT_ID];
   char *r;
+  char l[1] = "_";
 
   t_rel_tree_node *rel_tree;
   t_rel_node *rel;
@@ -3165,6 +3171,7 @@ int delrel(t_rel_tree_head *hash_rt){
   // sscanf(input," \"%49[^\"]\" \"%49[^\"]\" \"%49[^\"]\"", delrel_orig, delrel_dest, delrel_id);
 
   strcpy(delrel_orig_dest, delrel_orig);
+  strcat(delrel_orig_dest, l);
   strcat(delrel_orig_dest, delrel_dest);
   // printf("delrel_orig_dest: %s\n", delrel_orig_dest);
 
@@ -3419,16 +3426,16 @@ int REPORT_RANK(t_rank_head *T, t_rank_node *x){
 }
 
 // FUNZIONE SECONDARIA COMANDO "report"
-void REPORT_WALK_REL_TREE(t_rel_tree_head *T, t_rel_tree_node *x, t_rel_tree_node *max){
+void REPORT_WALK_REL_TREE(t_rel_tree_head *T, t_rel_tree_node *x){
   if(x != T->nil){
-    REPORT_WALK_REL_TREE(T, x->left, max);
+    REPORT_WALK_REL_TREE(T, x->left);
 
     // faccio la report solo se ranking non è vuoto
     if(x->ranking->root != x->ranking->nil && x->relations->root != x->relations->nil){
       vuoto = 0;
-      // printed_1 = 1;
       // printed_2 = 1;
-      fputs("\"", stdout);
+      if(printed_1 == 0) fputs("\"", stdout);
+      else fputs(" \"", stdout);
       fputs(x->id, stdout);
       fputs("\" ", stdout);
       // printf("\"%s\" ", x->id); // print ent name
@@ -3439,43 +3446,44 @@ void REPORT_WALK_REL_TREE(t_rel_tree_head *T, t_rel_tree_node *x, t_rel_tree_nod
       REPORT_RANK(x->ranking, x->ranking->root); // print rank
       // if(x != max)
       //   printf(" ");
-      printf(" ");
+      // printf(" ");
+      printed_1 = 1;
     }
 
-    REPORT_WALK_REL_TREE(T, x->right, max);
+    REPORT_WALK_REL_TREE(T, x->right);
   }
 }
 
 // FUNZIONE PRIMARIA BIS DEL COMANDO "report"
-int report2(t_rel_tree_head *T){
-  t_rel_tree_node *x = T->root;
-  // t_rel_tree_node *y;
-
-  // vado all'ultima relazione
-  // questo serve per mettere ; senza spazio alla fine
-  // while (x->right != T->nil) {
-  //   x = x->right;
-  // }
-
-  // printed_2 = 0;
-
-  REPORT_WALK_REL_TREE(T, T->root, x);
-
-  // // prendo il predecessore della relazione
-  // y = REL_TREE_TREE_PREDECESSOR(T, x);
-  // while (y != T->nil && x->ranking->root == x->ranking->nil) {
-  //   x = y;
-  //   y = REL_TREE_TREE_PREDECESSOR(T, x);
-  // }
-  // if(x->ranking->root != x->ranking->nil){
-  //   REPORT_WALK_REL_TREE(T, T->root, x);
-  // }
-  // else{
-  //   // printf("none");
-  //   return 2;
-  // }
-  return 1;
-}
+// int report2(t_rel_tree_head *T){
+//   // t_rel_tree_node *x = T->root;
+//   // t_rel_tree_node *y;
+//
+//   // vado all'ultima relazione
+//   // questo serve per mettere ; senza spazio alla fine
+//   // while (x->right != T->nil) {
+//   //   x = x->right;
+//   // }
+//
+//   // printed_2 = 0;
+//
+//   REPORT_WALK_REL_TREE(T, T->root);
+//
+//   // // prendo il predecessore della relazione
+//   // y = REL_TREE_TREE_PREDECESSOR(T, x);
+//   // while (y != T->nil && x->ranking->root == x->ranking->nil) {
+//   //   x = y;
+//   //   y = REL_TREE_TREE_PREDECESSOR(T, x);
+//   // }
+//   // if(x->ranking->root != x->ranking->nil){
+//   //   REPORT_WALK_REL_TREE(T, T->root, x);
+//   // }
+//   // else{
+//   //   // printf("none");
+//   //   return 2;
+//   // }
+//   return 1;
+// }
 
 // FUNZIONE PRINCIPALE COMANDO "report"
 int report(t_rel_tree_head *hash){
@@ -3485,12 +3493,10 @@ int report(t_rel_tree_head *hash){
   char *r;
 
   // #######################
-  // serve per fixare un bug
-  // praticamente probabilemnte c'è uno \n o cose così alla fine che bisona leggere.
+  // praticamente probabilemnte c'è uno \n o \0 alla fine che bisona leggere.
   //    perchè il gets del main non lo legge
   char input[MAX_INPUT];
   r = fgets(input, MAX_INPUT, stdin);
-  // serve per fixare un bug
   // #######################
 
   #ifdef DISABLE_REPORT
@@ -3498,7 +3504,7 @@ int report(t_rel_tree_head *hash){
   #endif
 
   vuoto = 1; // variabile globale
-  // printed_1 = 0; // variabile globale
+  printed_1 = 0; // variabile globale
 
   // scandisco la hash table
   while(i < HASH_SIZE){
@@ -3509,10 +3515,10 @@ int report(t_rel_tree_head *hash){
       //   printf(" ");
 
       // faccio la report di quel valore di hash
-      report2(hash+i);
+      // report2(hash+i);
+      REPORT_WALK_REL_TREE(hash+i, (hash+i)->root);
       // if(printed_1 == 1) fputs(" ", stdout);
       // if(printed == 1) printf(" ");
-
     }
     i++;
   }
@@ -3540,8 +3546,8 @@ int main(){
   char *r;
 
   // array delle entità
-  t_ent_head* T_ent = init_hash_ent();
-  t_rel_tree_head* T_rel_tree = init_hash_rel_tree();
+  t_ent_head *T_ent = init_hash_ent();
+  t_rel_tree_head *T_rel_tree = init_hash_rel_tree();
 
   // t_ent_head T_ent; //head delle entità
   // t_rel_tree_head T_rel_tree; //head delle relazioni
@@ -3554,17 +3560,8 @@ int main(){
   // T_rel_tree.nil = &NIL_REL_TREE;
   // T_rel_tree.root = T_rel_tree.nil;
 
-  #ifdef DEBUG_STATS
-  clock_t start, end; // TEST
-  double cpu_time_used; // TEST
-  #endif
-
   // RICEZIONE PRIMO COMANDO
   // fgets(&comando[0], MAX_INPUT, stdin);
-
-  #ifdef DEBUG_STATS
-  start = clock(); // TEST
-  #endif
 
   // size_cmd = getline(&comando, &len, stdin);
   // i = strlen(comando)-1;
@@ -3601,10 +3598,8 @@ int main(){
         printf("\n");
       #endif
     }
-    else{ // end
-       // non dovrebbe mai entrare qui!
-       // se ci entra meglio non scrivere niente!
-       // printf("ERROR\n");
+    else{
+      // ESCO
     }
 
     // RICEZIONE COMANDI SUCCESSIVI AL PRIMO
@@ -3622,12 +3617,6 @@ int main(){
 
   free(T_ent);
   free(T_rel_tree);
-
-  #ifdef DEBUG_STATS
-    end = clock();
-    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("\n-time: %f\n", cpu_time_used);
-  #endif
 
   return 0;
 }
