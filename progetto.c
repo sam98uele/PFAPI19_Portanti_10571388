@@ -3,9 +3,9 @@
 #include <string.h>
 
 #define MAX_COMANDO 20
-#define MAX_INPUT 200
-#define MAX_ENT_ID 100
-#define MAX_REL_ID 100
+#define MAX_INPUT 300
+#define MAX_ENT_ID 200
+#define MAX_REL_ID 200
 
 // #define HASH_SIZE 64 // 4096
 #define HASH_SIZE 1 // 4096
@@ -31,6 +31,7 @@
 
 // #define DISABLE_ADD 0
 
+#define DISABLE_VALID_BIT 0
 
 // #define DISABLE_FREE_ENT_NODE 0
 // #define DISABLE_FREE_REL_TREE 0
@@ -53,8 +54,8 @@
 
 // #define DISABLE_REPORT 0
 
-#define INSERT_SLIDE 0
-#define DELETE_SLIDE 0
+// #define INSERT_SLIDE 0
+// #define DELETE_SLIDE 0
 
 
 typedef struct ent_head t_ent_head;
@@ -78,7 +79,9 @@ struct ent_head{
 
 struct ent_node{
   char *id; // [MAX_ENT_ID]
-  int v; //valid bit = 0->deleted , 1->alive
+  #ifndef DISABLE_VALID_BIT
+    short int v; //valid bit = 0->deleted , 1->alive
+  #endif
   t_rel_list *in_rel; // list of relations in
   t_rel_list *out_rel; // list of relations out
   int color; // 0 -> black - 1 -> red
@@ -95,7 +98,6 @@ struct ent_node{
 // #################
 // Questa va messa nel nodo della relazione
 struct rel_list{
-  t_rel_head *rel_head;
   t_rel_node *rel;
   t_rel_list *prev;
   t_rel_list *next;
@@ -114,7 +116,9 @@ struct rel_tree_head{
 
 struct rel_tree_node{
   char *id; //[MAX_REL_ID]
-  int v; //valid bit = 0->deleted , 1->alive
+  #ifndef DISABLE_VALID_BIT
+  short int v; //valid bit = 0->deleted , 1->alive
+  #endif
   t_rel_head *relations;
   t_rank_head *ranking;
   int color; // 0 -> black - 1 -> red
@@ -138,13 +142,15 @@ struct rel_node{
   // t_rel_tree_head rel; //head of rel_tree_node
   // char id[MAX_REL_ID];
   char *id; // [MAX_ENT_ID+MAX_REL_ID] //id made by "from_ent"+"to_ent" !UNIQUE!
-  int v; //valid bit = 0->deleted , 1->alive
+  #ifndef DISABLE_VALID_BIT
+  short int v; //valid bit = 0->deleted , 1->alive
+  #endif
   t_ent_node *orig;
   t_ent_node *dest;
   t_rel_list *orig_rel_list_pointer;
   t_rel_list *dest_rel_list_pointer;
-  t_rank_head *rank_h_p;
   t_rank_node *rank_pointer;
+  // t_rel_head *rel_head;
   int color; // 0 -> black - 1 -> red
   t_rel_node *p;
   t_rel_node *left;
@@ -160,7 +166,6 @@ struct rel_node{
 // ##################
 struct rank_head{
   t_rank_node *root;
-  t_rank_node *max;
   t_rank_node *nil;
 };
 
@@ -169,8 +174,11 @@ struct rank_node{
   // char id[MAX_REL_ID];
   int n; // number of entrance rels
   char *id; // [MAX_ENT_ID] //id made by "to_ent" !UNIQUE! (relazioni entranti)
+  // t_rank_head *rank_h_p;
   t_rel_tree_node *rel_tree_pointer;
-  int v; //valid bit = 0->deleted , 1->alive
+  #ifndef DISABLE_VALID_BIT
+  short int v; //valid bit = 0->deleted , 1->alive
+  #endif
   int color; // 0 -> black - 1 -> red
   t_rank_node *p;
   t_rank_node *left;
@@ -180,17 +188,19 @@ struct rank_node{
 // END RANKING TREE
 // ##################
 
-typedef struct ent_ranking_node{
-  int id;
-  int code;
-  int ranking;
-} t_ent_ranking_node;
 
 // START Global Vars
+#ifndef DISABLE_VALID_BIT
 t_ent_node NIL_ENT = {.id = "NIL_END", .color = 0, .v = 1, .in_rel = NULL, .out_rel = NULL, .p = NULL, .left = NULL, .right = NULL};
 t_rel_tree_node NIL_REL_TREE = {.id = "NIL_REL_TREE", .color = 0, .v = 1, .ranking = NULL, .relations = NULL, .p = NULL, .left = NULL, .right = NULL};
 t_rel_node NIL_REL = {.id = "NIL_REL", .color = 0, .v = 1, .orig = NULL, .dest = NULL, .p = NULL, .left = NULL, .right = NULL};
 t_rank_node NIL_RANK = {.n = 0, .id = "NIL_RANK", .color = 0, .v = 1, .p = NULL, .left = NULL, .right = NULL};
+#else
+t_ent_node NIL_ENT = {.id = "NIL_END", .color = 0, .in_rel = NULL, .out_rel = NULL, .p = NULL, .left = NULL, .right = NULL};
+t_rel_tree_node NIL_REL_TREE = {.id = "NIL_REL_TREE", .color = 0, .ranking = NULL, .relations = NULL, .p = NULL, .left = NULL, .right = NULL};
+t_rel_node NIL_REL = {.id = "NIL_REL", .color = 0, .orig = NULL, .dest = NULL, .p = NULL, .left = NULL, .right = NULL};
+t_rank_node NIL_RANK = {.n = 0, .id = "NIL_RANK", .color = 0, .p = NULL, .left = NULL, .right = NULL};
+#endif
 
 int vuoto = 1;
 int printed_1 = 0;
@@ -446,9 +456,13 @@ void ENT_RIGHT_ROTATE(t_ent_head *T, t_ent_node *x){
 void ENT_REL_WALK(t_rel_list *x){
   // printf("a\n");
   if(x != NULL){
-    if(x->rel->v == 1){
+    #ifndef DISABLE_VALID_BIT
+      if(x->rel->v == 1){
+        printf("%s ", x->rel->id);
+      }
+    #else
       printf("%s ", x->rel->id);
-    }
+    #endif
     ENT_REL_WALK(x->next);
   }
 }
@@ -2627,7 +2641,9 @@ int addent(t_ent_head *hash){
   // copy id
   ent->id = (char*) calloc(strlen(addent_id) + 1, sizeof(char));
   ent->id = strcpy(ent->id, addent_id);
+  #ifndef DISABLE_VALID_BIT
   ent->v = 1;
+  #endif
   ent->in_rel = NULL;
   ent->out_rel = NULL;
 
@@ -2701,13 +2717,17 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     }
   #endif
 
+  #ifndef DISABLE_VALID_BIT
   deleted_ent->v = 0;
+  #endif
 
   // CANCELLO TUTTE LE RELAZIONI IN "IN"
   in = deleted_ent->in_rel;
   while (in != NULL) {
-    deleted_rel = REL_DELETE(in->rel_head, in->rel);
+    deleted_rel = REL_DELETE(in->rel->rank_pointer->rel_tree_pointer->relations, in->rel);
+    #ifndef DISABLE_VALID_BIT
     in->rel->v = 0;
+    #endif
 
     #ifdef TEST_1
       if(deleted_rel != in->rel){
@@ -2726,7 +2746,9 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
 
       deleted_rel_tree = REL_TREE_DELETE(hash_rt+hash_rt_v, in->rel->rank_pointer->rel_tree_pointer);
 
+      #ifndef DISABLE_VALID_BIT
       in->rel->rank_pointer->rel_tree_pointer->v = 0;
+      #endif
 
       #ifdef TEST_1
         if(deleted_rel_tree != in->rel->rank_pointer->rel_tree_pointer)
@@ -2740,7 +2762,7 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     }
 
     if((in->rel->rank_pointer->n - 1) == 0){
-      deleted_rank = RANK_DELETE(in->rel->rank_h_p, in->rel->rank_pointer);
+      deleted_rank = RANK_DELETE(in->rel->rank_pointer->rel_tree_pointer->ranking, in->rel->rank_pointer);
 
       #ifdef TEST_1
         if(deleted_rank != in->rel->rank_pointer)
@@ -2753,12 +2775,14 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
         free(in->rel->rank_pointer->id);
         free(in->rel->rank_pointer);
       #else
-        in->rel->rank_pointer->v = 0;
+        #ifndef DISABLE_VALID_BIT
+          in->rel->rank_pointer->v = 0;
+        #endif
       #endif
     }
     else{
       // update rank (lo reinseriamo)
-      deleted_rank = RANK_DELETE(in->rel->rank_h_p, in->rel->rank_pointer);
+      deleted_rank = RANK_DELETE(in->rel->rank_pointer->rel_tree_pointer->ranking, in->rel->rank_pointer);
 
       #ifdef TEST_1
         if(deleted_rank != in->rel->rank_pointer)
@@ -2767,7 +2791,7 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
 
       in->rel->rank_pointer->n = in->rel->rank_pointer->n - 1;
 
-      RANK_INSERT(in->rel->rank_h_p, in->rel->rank_pointer);
+      RANK_INSERT(in->rel->rank_pointer->rel_tree_pointer->ranking, in->rel->rank_pointer);
     }
 
     REMOVE_FROM_LIST(&(deleted_rel->orig->out_rel), deleted_rel->orig_rel_list_pointer);
@@ -2792,8 +2816,10 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
   // CANCELLO TUTTE LE RELAZIONI IN "OUT"
   out = deleted_ent->out_rel;
   while (out != NULL) {
-    deleted_rel = REL_DELETE(out->rel_head, out->rel);
+    deleted_rel = REL_DELETE(out->rel->rank_pointer->rel_tree_pointer->relations, out->rel);
+    #ifndef DISABLE_VALID_BIT
     out->rel->v = 0;
+    #endif
 
     #ifdef TEST_1
       if(deleted_rel != out->rel){
@@ -2820,12 +2846,14 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
         free(out->rel->rank_pointer->rel_tree_pointer->id); // così perchè ho modificato l'algoritmo!
         free(out->rel->rank_pointer->rel_tree_pointer); // così perchè ho modificato l'algoritmo!
       #else
-        out->rel->rank_pointer->rel_tree_pointer->v = 0;
+        #ifndef DISABLE_VALID_BIT
+          out->rel->rank_pointer->rel_tree_pointer->v = 0;
+        #endif
       #endif
     }
 
     if((out->rel->rank_pointer->n - 1) == 0){
-      deleted_rank = RANK_DELETE(out->rel->rank_h_p, out->rel->rank_pointer);
+      deleted_rank = RANK_DELETE(out->rel->rank_pointer->rel_tree_pointer->ranking, out->rel->rank_pointer);
 
       #ifdef TEST_1
         if(deleted_rank != out->rel->rank_pointer)
@@ -2838,12 +2866,14 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
         free(out->rel->rank_pointer->id);
         free(out->rel->rank_pointer);
       #else
-        out->rel->rank_pointer->v = 0;
+        #ifndef DISABLE_VALID_BIT
+          out->rel->rank_pointer->v = 0;
+        #endif
       #endif
     }
     else{
       // update (lo reinseriamo)
-      deleted_rank = RANK_DELETE(out->rel->rank_h_p, out->rel->rank_pointer);
+      deleted_rank = RANK_DELETE(out->rel->rank_pointer->rel_tree_pointer->ranking, out->rel->rank_pointer);
 
       #ifdef TEST_1
         if(deleted_rank != out->rel->rank_pointer)
@@ -2852,7 +2882,7 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
 
       out->rel->rank_pointer->n = out->rel->rank_pointer->n - 1;
 
-      RANK_INSERT(out->rel->rank_h_p, out->rel->rank_pointer);
+      RANK_INSERT(out->rel->rank_pointer->rel_tree_pointer->ranking, out->rel->rank_pointer);
     }
 
     REMOVE_FROM_LIST(&(deleted_rel->dest->in_rel), deleted_rel->dest_rel_list_pointer);
@@ -2860,7 +2890,9 @@ int delent(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     #ifndef DISABLE_FREE_REL_LIST_ADDENT
       free(deleted_rel->dest_rel_list_pointer);
     #else
-      out->rel->v = 0;
+      #ifndef DISABLE_VALID_BIT
+        out->rel->v = 0;
+      #endif
     #endif
 
     #ifndef DISABLE_FREE_REL_NODE_DELENT
@@ -2903,7 +2935,7 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
   char addrel_orig[MAX_ENT_ID];
   char addrel_dest[MAX_ENT_ID];
   char addrel_rel_id[MAX_REL_ID];
-  char addrel_orig_dest[MAX_ENT_ID+MAX_ENT_ID];
+  char addrel_orig_dest[MAX_ENT_ID+MAX_ENT_ID+1];
   char *r; // temp. tanto alla fine della funzione viene distrutto
   char l[1] = "_";
 
@@ -2991,7 +3023,9 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     rel_tree->id = (char*) calloc(strlen(addrel_rel_id) + 1, sizeof(char));
     strcpy(rel_tree->id, addrel_rel_id);
     rel_tree->color = 0;
+    #ifndef DISABLE_VALID_BIT
     rel_tree->v = 1;
+    #endif
     rel_tree->relations = (t_rel_head*) malloc(sizeof(t_rel_head));
     rel_tree->relations->nil = &NIL_REL;
     rel_tree->relations->root = rel_tree->relations->nil;
@@ -3019,10 +3053,13 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
 
   rel_node->id = (char*) calloc(strlen(addrel_orig_dest) + 1, sizeof(char));
   strcpy(rel_node->id, addrel_orig_dest);
+  #ifndef DISABLE_VALID_BIT
   rel_node->v = 1;
+  #endif
   rel_node->orig = orig;
   rel_node->dest = dest;
   // rel_node->color = 0;
+  // rel_node->rel_head = rel_tree->relations;
 
   if(REL_INSERT(rel_tree->relations, rel_node)){
     #ifdef DEBUG_2
@@ -3096,7 +3133,9 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
     rank = (t_rank_node*) malloc(sizeof(t_rank_node));
     rank->id = (char*) calloc(strlen(addrel_dest) + 1, sizeof(char));
     strcpy(rank->id, addrel_dest);
+    #ifndef DISABLE_VALID_BIT
     rank->v = 1;
+    #endif
     rank->n = 1;
     rank->rel_tree_pointer = rel_tree;
     RANK_INSERT(rel_tree->ranking, rank);
@@ -3107,8 +3146,8 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
   }
 
   // inseriamo il collegamento da ent al nodo rank
-  rel_node->rank_h_p = rel_tree->ranking; // inseriamo la head del rank (serve per il delete)
   rel_node->rank_pointer = rank; // puntatore al nodo rank
+  // rank->rank_h_p = rel_tree->ranking; // inseriamo la head del rank (serve per il delete)
 
   #ifdef DEBUG_ADDREL
     printf("-------Rank repo dopo insert: ---------\n");
@@ -3116,10 +3155,10 @@ int addrel(t_ent_head *hash_e, t_rel_tree_head *hash_rt){
   #endif
 
   out = (t_rel_list*) malloc(sizeof(t_rel_list));
-  out->rel_head = rel_tree->relations;
+  // out->rel_head = rel_tree->relations;
   out->rel = rel_node;
   in = (t_rel_list*) malloc(sizeof(t_rel_list));
-  in->rel_head = rel_tree->relations;
+  // in->rel_head = rel_tree->relations;
   in->rel = rel_node;
 
   ADD_TO_LIST(&(orig->out_rel), out);
@@ -3137,7 +3176,7 @@ int delrel(t_rel_tree_head *hash_rt){
   char delrel_orig[MAX_ENT_ID];
   char delrel_dest[MAX_ENT_ID];
   char delrel_id[MAX_REL_ID];
-  char delrel_orig_dest[MAX_ENT_ID+MAX_ENT_ID];
+  char delrel_orig_dest[MAX_ENT_ID+MAX_ENT_ID+1];
   char *r;
   char l[1] = "_";
 
@@ -3198,7 +3237,9 @@ int delrel(t_rel_tree_head *hash_rt){
     }
   #endif
 
+  #ifndef DISABLE_VALID_BIT
   deleted_rel->v = 0;
+  #endif
 
   #ifdef DEBUG_DELREL
     printf("Eliminata relazione\n");
@@ -3215,7 +3256,9 @@ int delrel(t_rel_tree_head *hash_rt){
     hash_rt_v = hash_value(rel_tree->id[0]);
     deleted_rel_tree = REL_TREE_DELETE(hash_rt+hash_rt_v, rel_tree);
 
+    #ifndef DISABLE_VALID_BIT
     rel_tree->v = 0;
+    #endif
 
     #ifdef TEST_1
       if(deleted_rel_tree != rel_tree){
@@ -3235,7 +3278,7 @@ int delrel(t_rel_tree_head *hash_rt){
       printf("Voglio eliminare il nodo rank che è a 0\n");
     #endif
 
-    deleted_rank = RANK_DELETE(rel->rank_h_p, rel->rank_pointer);
+    deleted_rank = RANK_DELETE(rel->rank_pointer->rel_tree_pointer->ranking, rel->rank_pointer);
 
     #ifdef TEST_1
       if(deleted_rank != rel->rank_pointer){
@@ -3245,11 +3288,13 @@ int delrel(t_rel_tree_head *hash_rt){
 
     rel->rank_pointer->n = rel->rank_pointer->n - 1;
 
-    #ifndef DISABLE_FREE_RANK_NODE
+    #ifndef DISABLE_VALID_BIT
+      #ifndef DISABLE_FREE_RANK_NODE
       if(rel->rank_pointer->v == 1)
-        rel->rank_pointer->v = 0;
-    #else
       rel->rank_pointer->v = 0;
+      #else
+      rel->rank_pointer->v = 0;
+      #endif
     #endif
 
     #ifndef DISABLE_FREE_RANK_NODE
@@ -3263,7 +3308,7 @@ int delrel(t_rel_tree_head *hash_rt){
       printf("Voglio aggiornare il nodo rank\n");
     #endif
 
-    deleted_rank = RANK_DELETE(rel->rank_h_p, rel->rank_pointer);
+    deleted_rank = RANK_DELETE(rel->rank_pointer->rel_tree_pointer->ranking, rel->rank_pointer);
 
     #ifdef TEST_1
       if(deleted_rank != rel->rank_pointer){
@@ -3277,7 +3322,7 @@ int delrel(t_rel_tree_head *hash_rt){
       printf("Rank eliminato (per update)\n");
     #endif
 
-    RANK_INSERT(rel->rank_h_p, rel->rank_pointer);
+    RANK_INSERT(rel->rank_pointer->rel_tree_pointer->ranking, rel->rank_pointer);
 
     #ifdef DEBUG_DELREL
       printf("Rank reinserito (per update)\n");
@@ -3286,12 +3331,12 @@ int delrel(t_rel_tree_head *hash_rt){
 
   #ifdef DEBUG_DELREL
     printf("\t\tRank walk after delrel: ");
-    RANK_TREE_WALK(rel->rank_h_p, rel->rank_h_p->root);
+    RANK_TREE_WALK(rel->rank_pointer->rel_tree_pointer->ranking, rel->rank_pointer->rel_tree_pointer->ranking->root);
   #endif
 
   #ifdef DEBUG_TREE_WALK
     printf("\t\tRank walk after delrel: ");
-    RANK_TREE_WALK(rel->rank_h_p, rel->rank_h_p->root);
+    RANK_TREE_WALK(rel->rank_pointer->rel_tree_pointer->ranking, rel->rank_pointer->rel_tree_pointer->ranking->root);
   #endif
 
   // sistemo le liste.
