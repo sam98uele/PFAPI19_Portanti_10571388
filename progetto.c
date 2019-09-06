@@ -4,9 +4,9 @@
 #include <malloc.h>
 
 #define MAX_COMANDO 6
-#define MAX_INPUT 100
-#define MAX_ENT_ID 50
-#define MAX_REL_ID 50
+#define MAX_INPUT 150
+#define MAX_ENT_ID 100
+#define MAX_REL_ID 100
 
 // #define HASH_SIZE 64 // 4096
 // #define HASH_SIZE 1 // 4096
@@ -24,6 +24,8 @@
 // #define DEBUG_REL_DELETE 1
 // #define DEBUG_TREE_WALK 0
 // #define DEBUG_3 0
+
+// #define TREE_WALK 0
 
 // #define DEBUG_ADDENT_WALK 0
 
@@ -54,9 +56,9 @@
 // #define DISABLE_REPORT 0
 
 #define INSERT_SLIDE 0
-#define DELETE_SLIDE 0
+// #define DELETE_SLIDE 0
 
-// #define ITERATIVE_SEARCH 0
+#define ITERATIVE_SEARCH 0
 // #define ITERATIVE_REPORT 0
 
 
@@ -100,8 +102,10 @@ struct ent_node{
 #pragma pack(1)
 struct rel_list{
   t_rel_node *rel;
-  t_rel_list *prev;
-  t_rel_list *next;
+  t_rel_list *prev_in;
+  t_rel_list *next_in;
+  t_rel_list *prev_out;
+  t_rel_list *next_out;
 };
 // #################
 // END REL LIST TREE
@@ -140,8 +144,9 @@ struct rel_head{
 #pragma pack(1)
 struct rel_node{
   int color : 8;
-  t_rel_list *orig_rel_list_pointer;
-  t_rel_list *dest_rel_list_pointer;
+  // t_rel_list *orig_rel_list_pointer;
+  // t_rel_list *dest_rel_list_pointer;
+  t_rel_list *list_pointer;
   t_ent_node *orig;
   t_rank_node *rank_pointer;
   t_rel_node *p;
@@ -257,23 +262,57 @@ int REL_CMP_NODES(t_rel_node *x, t_rel_node *y){
 // }
 
 
-void ADD_TO_LIST(t_rel_list **HEAD, t_rel_list *rel){
-  rel->next = *HEAD;
+void ADD_TO_LIST_IN(t_rel_list **HEAD, t_rel_list *rel){
+  rel->next_in = *HEAD;
   if(*HEAD != NULL)
-    (*HEAD)->prev = rel;
+    (*HEAD)->prev_in = rel;
   *HEAD = rel;
-  rel->prev = NULL;
+  rel->prev_in = NULL;
 }
 
-void REMOVE_FROM_LIST(t_rel_list **HEAD, t_rel_list *rel){
-  if(rel->prev != NULL)
-    rel->prev->next = rel->next;
+void REMOVE_FROM_LIST_IN(t_rel_list **HEAD, t_rel_list *rel){
+  if(rel->prev_in != NULL)
+    rel->prev_in->next_in = rel->next_in;
   else
-    *HEAD = rel->next;
-  if(rel->next != NULL)
-    rel->next->prev = rel->prev;
+    *HEAD = rel->next_in;
+  if(rel->next_in != NULL)
+    rel->next_in->prev_in = rel->prev_in;
   // return rel;
 }
+
+// t_rel_list *LIST_SEARCH_IN(t_rel_list **HEAD, t_rel_node *rel){
+//   t_rel_list *x = *HEAD;
+//   while (x != NULL && x->rel != rel) {
+//     x = x->next_in;
+//   }
+//   return x;
+// }
+
+void ADD_TO_LIST_OUT(t_rel_list **HEAD, t_rel_list *rel){
+  rel->next_out = *HEAD;
+  if(*HEAD != NULL)
+    (*HEAD)->prev_out = rel;
+  *HEAD = rel;
+  rel->prev_out = NULL;
+}
+
+void REMOVE_FROM_LIST_OUT(t_rel_list **HEAD, t_rel_list *rel){
+  if(rel->prev_out != NULL)
+    rel->prev_out->next_out = rel->next_out;
+  else
+    *HEAD = rel->next_out;
+  if(rel->next_out != NULL)
+    rel->next_out->prev_out = rel->prev_out;
+  // return rel;
+}
+
+// t_rel_list *LIST_SEARCH_OUT(t_rel_list **HEAD, t_rel_node *rel){
+//   t_rel_list *x = *HEAD;
+//   while (x != NULL && x->rel != rel) {
+//     x = x->next_in;
+//   }
+//   return x;
+// }
 
 // ###############################
 // #### REL LIST OPERATIONS ######
@@ -318,13 +357,14 @@ void ENT_RIGHT_ROTATE(t_ent_head *T, t_ent_node *x){
   x->p = y;
 }
 
-void ENT_REL_WALK(t_rel_list *x){
-  if(x != NULL){
-    printf("%s ", x->rel->rank_pointer->rel_tree_pointer->id);
-    ENT_REL_WALK(x->next);
-  }
-}
+// void ENT_REL_WALK(t_rel_list *x){
+//   if(x != NULL){
+//     printf("%s ", x->rel->rank_pointer->rel_tree_pointer->id);
+//     ENT_REL_WALK(x->next);
+//   }
+// }
 
+#ifdef TREE_WALK
 void ENT_TREE_WALK(t_ent_head *T, t_ent_node *x){
   if(x != T->nil){
     ENT_TREE_WALK(T, x->left);
@@ -335,6 +375,7 @@ void ENT_TREE_WALK(t_ent_head *T, t_ent_node *x){
     printf(" %s ", x->id);
   }
 }
+#endif
 
 t_ent_node *ENT_TREE_MINIMUM(t_ent_head *T, t_ent_node *x){
   while (x->left != T->nil) {
@@ -820,6 +861,7 @@ void REL_RIGHT_ROTATE(t_rel_head *T, t_rel_node *x){
   x->p = y;
 }
 
+#ifdef TREE_WALK
 void REL_TREE_WALK(t_rel_head *T, t_rel_node *x){
   if(x != T->nil){
     REL_TREE_WALK(T, x->left);
@@ -827,6 +869,7 @@ void REL_TREE_WALK(t_rel_head *T, t_rel_node *x){
     REL_TREE_WALK(T, x->right);
   }
 }
+#endif
 
 t_rel_node *REL_TREE_MINIMUM(t_rel_head *T, t_rel_node *x){
   while (x->left != T->nil) {
@@ -1312,6 +1355,7 @@ void REL_TREE_RIGHT_ROTATE(t_rel_tree_head *T, t_rel_tree_node *x){
   x->p = y;
 }
 
+#ifdef TREE_WALK
 void REL_TREE_TREE_WALK(t_rel_tree_head *T, t_rel_tree_node *x){
   if(x != T->nil){
     REL_TREE_TREE_WALK(T, x->left);
@@ -1319,6 +1363,7 @@ void REL_TREE_TREE_WALK(t_rel_tree_head *T, t_rel_tree_node *x){
     REL_TREE_TREE_WALK(T, x->right);
   }
 }
+#endif
 
 t_rel_tree_node *REL_TREE_TREE_MINIMUM(t_rel_tree_head *T, t_rel_tree_node *x){
   while (x->left != T->nil) {
@@ -1812,6 +1857,7 @@ void RANK_RIGHT_ROTATE(t_rank_head *T, t_rank_node *x){
   x->p = y;
 }
 
+#ifdef TREE_WALK
 void RANK_TREE_WALK(t_rank_head *T, t_rank_node *x){
   if(x != T->nil){
     RANK_TREE_WALK(T, x->left);
@@ -1823,6 +1869,7 @@ void RANK_TREE_WALK(t_rank_head *T, t_rank_node *x){
     RANK_TREE_WALK(T, x->right);
   }
 }
+#endif
 
 t_rank_node *RANK_TREE_MINIMUM(t_rank_head *T, t_rank_node *x){
   while (x->left != T->nil) {
@@ -2512,7 +2559,7 @@ t_rank_node *find_rank_v2(t_rel_list *x, t_rel_tree_node *rel_tree){
     // if(x->rel->v == 1 && x->rel->rank_pointer->v == 1 && x->rel->rank_pointer->rel_tree_pointer->v == 1 && rel_tree == x->rel->rank_pointer->rel_tree_pointer)
     if(rel_tree == x->rel->rank_pointer->rel_tree_pointer)
       break;
-    x = x->next;
+    x = x->next_in; //DEST!
   }
   if(x != NULL)
     return x->rel->rank_pointer;
@@ -2524,7 +2571,9 @@ t_rank_node *find_rank_v2(t_rel_list *x, t_rel_tree_node *rel_tree){
 // ##########   COMANDI    ##########
 // ##################################
 
-// FUNZIONE PRINCIPALE COMANDO "addent"
+// -------------------------------------------------------------------------------------------------------- //
+// ------------------------------ FUNZIONE PRINCIPALE COMANDO "addent" ------------------------------------ //
+// -------------------------------------------------------------------------------------------------------- //
 int addent(t_ent_head *E){
   char input[MAX_INPUT];
   char addent_id[MAX_ENT_ID];
@@ -2574,7 +2623,9 @@ int addent(t_ent_head *E){
   return 1;
 }
 
-// FUNZIONE PRINCIPALE COMANDO "delent"
+// -------------------------------------------------------------------------------------------------------- //
+// ------------------------------ FUNZIONE PRINCIPALE COMANDO "delent" ------------------------------------ //
+// -------------------------------------------------------------------------------------------------------- //
 int delent(t_ent_head *E, t_rel_tree_head *R){
   char input[MAX_INPUT];
   char delent_id[MAX_ENT_ID];
@@ -2666,6 +2717,12 @@ int delent(t_ent_head *E, t_rel_tree_head *R){
       rel_tree_tofree = in->rel->rank_pointer->rel_tree_pointer;
     }
 
+    // rel_list_tofree = REMOVE_FROM_LIST(&(in->rel->orig->out_rel), in->rel);
+    // if(rel_list_tofree != NULL)
+    //   free(rel_list_tofree);
+    REMOVE_FROM_LIST_OUT(&(in->rel->orig->out_rel), in); // LA FREE POI VIENE FATTA ALLA FINE (dato che è lo stesso nodo)
+    // free(in->rel->orig_rel_list_pointer);
+
     if((in->rel->rank_pointer->n - 1) == 0){
       // deleted_rank = RANK_DELETE(in->rel->rank_pointer->rel_tree_pointer->ranking, in->rel->rank_pointer);
       RANK_DELETE(in->rel->rank_pointer->rel_tree_pointer->ranking, in->rel->rank_pointer);
@@ -2696,13 +2753,6 @@ int delent(t_ent_head *E, t_rel_tree_head *R){
       RANK_INSERT(in->rel->rank_pointer->rel_tree_pointer->ranking, in->rel->rank_pointer);
     }
 
-    // deleted_list = REMOVE_FROM_LIST(&(in->rel->orig->out_rel), in->rel->orig_rel_list_pointer);
-    // if(deleted_list != NULL)
-    //   free(deleted_list);
-    REMOVE_FROM_LIST(&(in->rel->orig->out_rel), in->rel->orig_rel_list_pointer);
-    free(in->rel->orig_rel_list_pointer);
-
-
     if(rel_tree_tofree != NULL){
       #ifndef DISABLE_FREE_REL_TREE
         free(rel_tree_tofree->id); // così perchè ho modificato l'algoritmo!
@@ -2713,7 +2763,7 @@ int delent(t_ent_head *E, t_rel_tree_head *R){
     }
 
     rel_list_tofree = in;
-    in = in->next;
+    in = in->next_in;
 
 
     #ifndef DISABLE_FREE_REL_NODE_DELENT
@@ -2722,7 +2772,7 @@ int delent(t_ent_head *E, t_rel_tree_head *R){
     #endif
 
     #ifndef DISABLE_FREE_REL_LIST
-      REMOVE_FROM_LIST(&(ent->in_rel), rel_list_tofree);
+      // REMOVE_FROM_LIST(&(ent->in_rel), rel_list_tofree);
       free(rel_list_tofree);
     #endif
 
@@ -2757,17 +2807,14 @@ int delent(t_ent_head *E, t_rel_tree_head *R){
       #endif
 
       rel_tree_tofree = out->rel->rank_pointer->rel_tree_pointer;
-      // free(out->rel->rank_pointer->rel_tree_pointer->id);
-      // free(out->rel->rank_pointer->rel_tree_pointer->relations);
-      // free(out->rel->rank_pointer->rel_tree_pointer->ranking);
-      // free(out->rel->rank_pointer->rel_tree_pointer);
     }
 
-    // deleted_list = REMOVE_FROM_LIST(&(out->rel->rank_pointer->dest->in_rel), out->rel->dest_rel_list_pointer);
-    // if(deleted_list != NULL)
-    //   free(deleted_list);
-    REMOVE_FROM_LIST(&(out->rel->rank_pointer->dest->in_rel), out->rel->dest_rel_list_pointer);
-    free(out->rel->dest_rel_list_pointer);
+    // rel_list_tofree = REMOVE_FROM_LIST(&(out->rel->rank_pointer->dest->in_rel), out->rel);
+    // if(rel_list_tofree != NULL)
+    //   free(rel_list_tofree);
+    // REMOVE_FROM_LIST(&(out->rel->rank_pointer->dest->in_rel), out->rel->dest_rel_list_pointer);
+    REMOVE_FROM_LIST_IN(&(out->rel->rank_pointer->dest->in_rel), out);
+    // free(out->rel->dest_rel_list_pointer);
 
     if((out->rel->rank_pointer->n - 1) == 0){
       // deleted_rank = RANK_DELETE(out->rel->rank_pointer->rel_tree_pointer->ranking, out->rel->rank_pointer);
@@ -2810,7 +2857,7 @@ int delent(t_ent_head *E, t_rel_tree_head *R){
 
 
     rel_list_tofree = out;
-    out = out->next;
+    out = out->next_out;
 
     #ifndef DISABLE_FREE_REL_NODE_DELENT
       // free(out->rel->id);
@@ -2818,7 +2865,7 @@ int delent(t_ent_head *E, t_rel_tree_head *R){
     #endif
 
     #ifndef DISABLE_FREE_REL_LIST
-      REMOVE_FROM_LIST(&(ent->out_rel), rel_list_tofree);
+      // REMOVE_FROM_LIST(&(ent->out_rel), rel_list_tofree);
       free(rel_list_tofree);
     #endif
   }
@@ -2858,8 +2905,10 @@ int addrel(t_ent_head *E, t_rel_tree_head *R){
 
   t_ent_node *orig;
   t_ent_node *dest;
-  t_rel_list *out;
-  t_rel_list *in;
+
+  // t_rel_list *out;
+  // t_rel_list *in;
+  t_rel_list *rel_list;
 
   t_rank_node *rank = NULL;
 
@@ -2950,7 +2999,7 @@ int addrel(t_ent_head *E, t_rel_tree_head *R){
     rel_tree->id = (char*) calloc(strlen(addrel_rel_id) + 1, sizeof(char));
     strcpy(rel_tree->id, addrel_rel_id);
     // free(addrel_rel_id);
-    rel_tree->color = 0;
+    // rel_tree->color = 0;
     rel_tree->relations = (t_rel_head*) malloc(sizeof(t_rel_head));
     // rel_tree->relations = (t_rel_head*) memalign(2, sizeof(t_rel_head));
     rel_tree->relations->nil = &NIL_REL;
@@ -3072,18 +3121,24 @@ int addrel(t_ent_head *E, t_rel_tree_head *R){
     RANK_TREE_WALK(rel_tree->ranking, rel_tree->ranking->root);
   #endif
 
-  out = (t_rel_list*) malloc(sizeof(t_rel_list));
-  // out->rel_head = rel_tree->relations;
-  out->rel = rel_node;
-  in = (t_rel_list*) malloc(sizeof(t_rel_list));
+  // out = (t_rel_list*) malloc(sizeof(t_rel_list));
+  // // out->rel_head = rel_tree->relations;
+  // out->rel = rel_node;
+  // in = (t_rel_list*) malloc(sizeof(t_rel_list));
+  // // in->rel_head = rel_tree->relations;
+  // in->rel = rel_node;
+
+  rel_list = (t_rel_list*) malloc(sizeof(t_rel_list));
   // in->rel_head = rel_tree->relations;
-  in->rel = rel_node;
+  rel_list->rel = rel_node;
 
-  ADD_TO_LIST(&(orig->out_rel), out);
-  rel_node->orig_rel_list_pointer = out;
+  ADD_TO_LIST_OUT(&(orig->out_rel), rel_list);
+  // rel_node->orig_rel_list_pointer = out;
 
-  ADD_TO_LIST(&(dest->in_rel), in);
-  rel_node->dest_rel_list_pointer = in;
+  ADD_TO_LIST_IN(&(dest->in_rel), rel_list);
+  // rel_node->dest_rel_list_pointer = in;
+
+  rel_node->list_pointer = rel_list;
 
   if(REL_INSERT(rel_tree->relations, rel_node)){
     #ifdef DEBUG_2
@@ -3110,7 +3165,7 @@ int delrel(t_rel_tree_head *R){
   // t_rel_node *deleted_rel;
   // t_rank_node *deleted_rank;
 
-  // t_rel_list *deleted_list;
+  t_rel_list *deleted_list;
 
   // int hash_rt_v;
 
@@ -3174,17 +3229,21 @@ int delrel(t_rel_tree_head *R){
 
   // sistemo le liste.
   // per evitare conflitti
-  // deleted_list = REMOVE_FROM_LIST(&(rel->orig->out_rel), rel->orig_rel_list_pointer);
-  // if(deleted_list != NULL)
-  //   free(deleted_list);
-  REMOVE_FROM_LIST(&(rel->orig->out_rel), rel->orig_rel_list_pointer);
-  free(rel->orig_rel_list_pointer);
 
-  // deleted_list = REMOVE_FROM_LIST(&(rel->rank_pointer->dest->in_rel), rel->dest_rel_list_pointer);
+  // deleted_list = LIST_SEARCH_IN(&(rel->rank_pointer->dest->in_rel), rel);
+
+  // deleted_list = REMOVE_FROM_LIST(&(rel->orig->out_rel), rel);
   // if(deleted_list != NULL)
   //   free(deleted_list);
-  REMOVE_FROM_LIST(&(rel->rank_pointer->dest->in_rel), rel->dest_rel_list_pointer);
-  free(rel->dest_rel_list_pointer);
+  REMOVE_FROM_LIST_OUT(&(rel->orig->out_rel), rel->list_pointer);
+  // free(deleted_list);
+
+  // deleted_list = REMOVE_FROM_LIST(&(rel->rank_pointer->dest->in_rel), rel);
+  // if(deleted_list != NULL)
+  //   free(deleted_list);
+  REMOVE_FROM_LIST_IN(&(rel->rank_pointer->dest->in_rel), rel->list_pointer);
+
+  free(rel->list_pointer);
 
   #ifndef DISABLE_FREE_REL_LIST_DELREL
   #endif
